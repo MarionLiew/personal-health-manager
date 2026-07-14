@@ -205,6 +205,7 @@ from health_agent.cli import (  # noqa: E402
     followup,
     labs,
     lesions,
+    profile,
     radiation,
     record,
     symptoms,
@@ -220,6 +221,7 @@ app.add_typer(radiation.app, name="radiation")
 app.add_typer(symptoms.app, name="symptoms")
 app.add_typer(followup.app, name="followup")
 app.add_typer(appointments.app, name="appointments")
+app.add_typer(profile.app, name="profile")
 
 
 @app.command("visit-summary")

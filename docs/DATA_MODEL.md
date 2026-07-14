@@ -18,3 +18,8 @@ WAL/SHM state. Version 3 additively introduces structured symptom observations, 
 appointment fields, pathology/clinician-opinion/Dose Screen candidates and reminder delivery logs.
 Existing v2 provenance records are preserved. Every applied migration writes `schema_version` and
 `db.migrate` audit rows; an existing database is backed up and integrity-checked before migration.
+
+Version 4 adds `PersonalCondition`, `ScarLesion`, `HPVLesion`, `TreatmentEvent`, `LesionImage`,
+`ImmuneContext`, `HealthTimelineEvent` and `RiskFactorProfile`. These are verified medical-management
+facts with the same provenance and audit columns as existing records. Images are content-addressed
+local files; the database stores their hash and repository-controlled data path, never image bytes.

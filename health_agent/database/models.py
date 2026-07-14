@@ -399,6 +399,126 @@ class HealthSample(MedicalRecordMixin, Base):
     )
 
 
+class PersonalCondition(MedicalRecordMixin, Base):
+    __tablename__ = "personal_conditions"
+    condition_name: Mapped[str] = mapped_column(String(255))
+    normalized_name: Mapped[str] = mapped_column(String(255), index=True)
+    category: Mapped[str] = mapped_column(String(64), index=True)
+    body_region: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    first_noted_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    current_status: Mapped[str] = mapped_column(String(32), default="unknown", index=True)
+    severity: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    recurrence_pattern: Mapped[str | None] = mapped_column(Text, nullable=True)
+    treatment_history: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    related_records: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    monitoring_plan: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ScarLesion(MedicalRecordMixin, Base):
+    __tablename__ = "scar_lesions"
+    condition_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("personal_conditions.id"), index=True
+    )
+    location: Mapped[str] = mapped_column(String(255))
+    scar_type: Mapped[str] = mapped_column(String(128), default="uncertain")
+    onset_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trigger_event: Mapped[str | None] = mapped_column(Text, nullable=True)
+    previous_treatment: Mapped[list[str]] = mapped_column(JSON, default=list)
+    treatment_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    recurrence_after_treatment: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    size_change: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    color_change: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    hardness_change: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    symptoms: Mapped[list[str]] = mapped_column(JSON, default=list)
+    dermatologist_assessment: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class HPVLesion(MedicalRecordMixin, Base):
+    __tablename__ = "hpv_lesions"
+    condition_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("personal_conditions.id"), index=True
+    )
+    location: Mapped[str] = mapped_column(String(255))
+    lesion_type: Mapped[str] = mapped_column(String(128), default="uncertain")
+    first_found: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    diagnosis_method: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hpv_related: Mapped[str] = mapped_column(String(32), default="uncertain")
+    treatment_history: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    laser_dates: Mapped[list[str]] = mapped_column(JSON, default=list)
+    recurrence: Mapped[str] = mapped_column(String(32), default="unknown")
+    pathology_done: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    dermatologist_opinion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    photos_available: Mapped[bool] = mapped_column(Boolean, default=False)
+    current_status: Mapped[str] = mapped_column(String(32), default="unknown", index=True)
+
+
+class TreatmentEvent(MedicalRecordMixin, Base):
+    __tablename__ = "treatment_events"
+    condition_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("personal_conditions.id"), index=True
+    )
+    target_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    target_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    treatment_type: Mapped[str] = mapped_column(String(255))
+    treatment_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    institution: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recurrence_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LesionImage(MedicalRecordMixin, Base):
+    __tablename__ = "lesion_images"
+    condition_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("personal_conditions.id"), index=True
+    )
+    lesion_type: Mapped[str] = mapped_column(String(64))
+    lesion_id: Mapped[str] = mapped_column(String(36), index=True)
+    taken_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    body_location: Mapped[str] = mapped_column(String(255))
+    image_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    local_path: Mapped[str] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    comparison_group: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+
+
+class ImmuneContext(MedicalRecordMixin, Base):
+    __tablename__ = "immune_contexts"
+    infections: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    vaccinations: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    influencing_factors: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    laboratory_record_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    current_observations: Mapped[list[str]] = mapped_column(JSON, default=list)
+    monitoring_items: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
+class HealthTimelineEvent(MedicalRecordMixin, Base):
+    __tablename__ = "health_timeline_events"
+    condition_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("personal_conditions.id"), nullable=True, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    related_record_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    related_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
+class RiskFactorProfile(MedicalRecordMixin, Base):
+    __tablename__ = "risk_factor_profiles"
+    factor_name: Mapped[str] = mapped_column(String(255), index=True)
+    factor_group: Mapped[str] = mapped_column(String(32), index=True)
+    category: Mapped[str] = mapped_column(String(64), index=True)
+    current_state: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    management_action: Mapped[str | None] = mapped_column(Text, nullable=True)
+    monitoring_metric: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+
+
 class SchemaVersion(Base):
     __tablename__ = "schema_version"
     version: Mapped[int] = mapped_column(Integer, primary_key=True)

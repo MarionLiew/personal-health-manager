@@ -1,6 +1,6 @@
 ---
 name: personal-health-manager
-description: Manage local personal health records through the tested `health` CLI. Use for WeChat requests to record or update symptoms; create, postpone, complete, or query follow-ups and appointments; preview, partially confirm, reject, or undo medical reports, clinician opinions, pathology, DICOM, and CT Dose Screen candidates; query laboratory, lesion, imaging and radiation histories; identify emergency routing signals; prepare department-specific visit summaries and data-backed doctor questions; or create, verify and restore backups.
+description: Manage local personal health records through the tested `health` CLI. Use for WeChat requests to record or update symptoms; manage long-term personal conditions, scar or HPV-related skin-lesion follow-up, treatment events, lesion-photo timelines, infection context and modifiable risk factors; create or query follow-ups and appointments; preview and partially confirm medical reports, DICOM and Dose Screen candidates; query laboratory, lesion, imaging and radiation histories; prepare visit summaries and doctor questions; or manage backups.
 ---
 
 # Personal Health Manager
@@ -36,6 +36,12 @@ Read [references/command-map.md](references/command-map.md) when selecting a com
 command from memory if it is absent there; check `health --help` and the relevant group help.
 Read [references/wechat-examples.md](references/wechat-examples.md) for mutation and partial-
 confirmation dialogue patterns.
+
+For long-term profile requests, use only `health profile ...`. Describe known problems, changes,
+treatments, current state, factors worth improving, changes to observe and next management actions.
+Never diagnose a scar or skin lesion from a photo, call an uncertain lesion HPV-confirmed, associate
+a scar directly with cancer risk, assert that reduced immunity caused HPV persistence, or emit an
+immune/inflammation score or disease probability.
 
 ## Medical safety
 

@@ -9,3 +9,5 @@ def test_hermes_skill_is_cli_only_and_confirmation_gated() -> None:
     assert "--confirm --json" in text
     assert "Never run a database client" in text
     assert "conversation memory as a medical fact" in text
+    assert "health profile" in text
+    assert "Never diagnose a scar" in text

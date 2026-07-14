@@ -18,6 +18,13 @@ def test_forbidden_pseudo_score_is_rejected() -> None:
         validate_response(response)
 
 
+@pytest.mark.parametrize("term", ["免疫力评分", "炎症评分", "个人癌症概率", "HPV一定会癌变"])
+def test_personal_profile_forbidden_claims_are_rejected(term: str) -> None:
+    response = ResponseEnvelope(status="success", action="profile.summary", data={"claim": term})
+    with pytest.raises(ValidationFailure):
+        validate_response(response)
+
+
 def test_evidence_types_are_closed_enum() -> None:
     assert validate_source_type("source_fact").value == "source_fact"
     with pytest.raises(ValidationFailure):

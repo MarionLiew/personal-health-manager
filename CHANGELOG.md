@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 - 2026-07-14
+
+- Add schema migration 4 and a single-user Personal Health Profile layer for long-term conditions,
+  scar lesions, HPV-related or uncertain skin lesions, treatment events and local lesion images.
+- Add infection/immune context without scoring, unified health timeline events, actionable risk
+  factors, monitoring preferences and long-term management priorities.
+- Add audited preview/confirmation CLI mutations and seven stable profile dashboard queries.
+- Extend medical safety validation and Hermes routing to prohibit photo diagnosis, scar-to-cancer
+  inference, HPV malignant-transformation claims and immune/inflammation scores.
+
 ## 0.3.0 - 2026-07-14
 
 - Add schema migration 3 with symptom observations, follow-up events, appointments, structured

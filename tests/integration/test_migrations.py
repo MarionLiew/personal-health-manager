@@ -18,9 +18,9 @@ from health_agent.database.session import build_engine
 
 def test_empty_database_upgrades_through_every_version(isolated_env: Path) -> None:
     engine = build_engine(isolated_env)
-    assert [item.version for item in pending_migrations(engine)] == [1, 2, 3]
-    assert upgrade(engine) == [1, 2, 3]
-    assert current_version(engine) == 3
+    assert [item.version for item in pending_migrations(engine)] == [1, 2, 3, 4]
+    assert upgrade(engine) == [1, 2, 3, 4]
+    assert current_version(engine) == 4
     assert verify_database(engine)["valid"] is True
 
 
@@ -36,7 +36,7 @@ def test_version_one_upgrades_through_three_and_preserves_records(isolated_env: 
             )
         )
     backup = isolated_env.parent / "v1-backup.sqlite3"
-    assert upgrade(engine, backup_path=backup) == [2, 3]
+    assert upgrade(engine, backup_path=backup) == [2, 3, 4]
     assert "record_candidates" in inspect(engine).get_table_names()
     with engine.connect() as connection:
         assert (
@@ -63,7 +63,7 @@ def test_version_two_upgrades_to_three_and_preserves_v2_records(isolated_env: Pa
             {"details": '{"legacy":true}'},
         )
     backup = isolated_env.parent / "v2-backup.sqlite3"
-    assert upgrade(engine, backup_path=backup) == [3]
+    assert upgrade(engine, backup_path=backup) == [3, 4]
     inspector = inspect(engine)
     assert "symptom_observations" in inspector.get_table_names()
     assert "normalized_symptom_name" in {
@@ -76,6 +76,34 @@ def test_version_two_upgrades_to_three_and_preserves_v2_records(isolated_env: Pa
         ).one()
         assert row[0] == '{"legacy":true}'
         assert row[1] is None
+
+
+def test_version_three_upgrades_to_profile_schema_and_preserves_records(
+    isolated_env: Path,
+) -> None:
+    engine = build_engine(isolated_env)
+    assert upgrade(engine, migrations=MIGRATIONS[:3]) == [1, 2, 3]
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO follow_up_plans("
+                "id, patient_id, source_type, extraction_method, extraction_version, verified, "
+                "verification_status, created_by, updated_by, details, recorded_at, updated_at, "
+                "title, status) VALUES ('followup-v3', 'local-primary', 'user_report', 'manual', "
+                "'3', 1, 'user_confirmed', 'pytest', 'pytest', '{}', CURRENT_TIMESTAMP, "
+                "CURRENT_TIMESTAMP, 'fictional preserved follow-up', 'pending')"
+            )
+        )
+    backup = isolated_env.parent / "v3-backup.sqlite3"
+    assert upgrade(engine, backup_path=backup) == [4]
+    assert "personal_conditions" in inspect(engine).get_table_names()
+    with engine.connect() as connection:
+        assert (
+            connection.execute(
+                text("SELECT title FROM follow_up_plans WHERE id='followup-v3'")
+            ).scalar()
+            == "fictional preserved follow-up"
+        )
 
 
 def test_repeated_upgrade_has_no_side_effect(isolated_env: Path) -> None:
@@ -100,9 +128,9 @@ def test_failed_migration_restores_database_and_version(isolated_env: Path) -> N
     with pytest.raises(RuntimeError, match="fictional migration failure"):
         upgrade(
             engine,
-            migrations=(*MIGRATIONS, Migration(4, "fictional_failure", fail)),
+            migrations=(*MIGRATIONS, Migration(5, "fictional_failure", fail)),
             backup_path=backup,
         )
     replacement = build_engine(isolated_env)
-    assert current_version(replacement) == 3
+    assert current_version(replacement) == 4
     assert "should_not_survive" not in inspect(replacement).get_table_names()

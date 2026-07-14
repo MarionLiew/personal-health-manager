@@ -17,6 +17,12 @@ confirmation must pass only user-selected IDs; low-confidence OCR is never auto-
 DLP is not added to event DLP. If no local OCR engine exists, the CLI returns `OCR_UNAVAILABLE` and
 does not send the image to an external service.
 
+Version 0.4 adds `health profile` intents. Hermes must query existing conditions before adding a new
+long-term condition, preview every mutation and preserve whether an HPV relationship is confirmed,
+suspected, uncertain or unsupported. Lesion photos are local change-tracking artifacts only. Profile
+replies must lead with known problems, current status and next attention, never a health, immune,
+inflammation or cancer-risk score.
+
 Install and verify without overwriting an existing Skill:
 
 ```bash

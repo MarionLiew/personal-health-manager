@@ -12,15 +12,23 @@ from health_agent.database.models import (
     ClinicalOpinionCandidate,
     DoseScreenCandidate,
     FollowUpEvent,
+    HealthTimelineEvent,
+    HPVLesion,
+    ImmuneContext,
+    LesionImage,
     PathologyCandidate,
+    PersonalCondition,
     RecordCandidate,
     ReminderDeliveryLog,
+    RiskFactorProfile,
+    ScarLesion,
     SymptomObservation,
+    TreatmentEvent,
 )
 from health_agent.database.session import build_engine
 from health_agent.errors import ConfirmationRequired
 
-LATEST_SCHEMA_VERSION = 3
+LATEST_SCHEMA_VERSION = 4
 SCHEMA_VERSION = LATEST_SCHEMA_VERSION
 
 
@@ -43,6 +51,14 @@ def _migration_1(connection: Connection) -> None:
         PathologyCandidate.__table__,
         DoseScreenCandidate.__table__,
         ReminderDeliveryLog.__table__,
+        PersonalCondition.__table__,
+        ScarLesion.__table__,
+        HPVLesion.__table__,
+        TreatmentEvent.__table__,
+        LesionImage.__table__,
+        ImmuneContext.__table__,
+        HealthTimelineEvent.__table__,
+        RiskFactorProfile.__table__,
     }
     tables = [table for table in Base.metadata.sorted_tables if table not in future_tables]
     Base.metadata.create_all(connection, tables=tables)
@@ -180,10 +196,25 @@ def _migration_3(connection: Connection) -> None:
     )
 
 
+def _migration_4(connection: Connection) -> None:
+    for table in (
+        PersonalCondition.__table__,
+        ScarLesion.__table__,
+        HPVLesion.__table__,
+        TreatmentEvent.__table__,
+        LesionImage.__table__,
+        ImmuneContext.__table__,
+        HealthTimelineEvent.__table__,
+        RiskFactorProfile.__table__,
+    ):
+        table.create(connection, checkfirst=True)
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "initial_schema", _migration_1),
     Migration(2, "record_candidates", _migration_2),
     Migration(3, "daily_medical_management", _migration_3),
+    Migration(4, "personal_health_profile", _migration_4),
 )
 
 

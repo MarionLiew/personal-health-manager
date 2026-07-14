@@ -2,7 +2,7 @@
 
 Status date: 2026-07-14.
 
-Current release: `0.3.0`; current schema: `3`.
+Current release: `0.4.0`; current schema: `4`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -24,6 +24,11 @@ Known limitations: image OCR requires a locally installed Tesseract executable; 
 supplied local OCR text but cannot render DICOM pixels for OCR. Follow-up recurrence automation and
 external reminder delivery are inactive. Department relevance uses deterministic terminology and
 requires user review. Apple Health and lifestyle modules remain deferred.
+
+The Personal Health Profile phase is complete for single-user controlled use: long-term conditions,
+scar/skin lesion history, treatment events, image timelines, infection context, risk factors and
+management priorities are implemented. Automated photo interpretation, disease diagnosis and risk
+probability models remain explicitly out of scope.
 
 No unfinished feature is represented as production-ready. The implementation order prioritizes
 provenance, confirmation, audit, and safety before medical parsing or analysis.

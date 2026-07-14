@@ -1,0 +1,10 @@
+version: "1.0"
+conditions: []
+monitoring:
+  dermatology:
+    enabled: false
+care_departments: []
+followup_preferences:
+  reminder_days_before: []
+risk_factors: []
+goals: []

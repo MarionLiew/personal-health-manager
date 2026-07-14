@@ -14,6 +14,13 @@ confirmation for mutations.
 - Appointments: `health appointments add`, `health appointments list`,
   `health appointments upcoming`, `health appointments show ID`,
   `health appointments complete ID`, `health appointments cancel ID`
+- Personal profile queries: `health profile summary`, `health profile conditions`,
+  `health profile timeline`, `health profile skin`, `health profile infections`,
+  `health profile monitoring`, `health profile priorities`, `health profile image-compare --group`
+- Personal profile mutations: `health profile condition-add`, `health profile condition-update`,
+  `health profile scar-add`, `health profile hpv-add`, `health profile treatment-add`,
+  `health profile image-add`, `health profile immune-add`, `health profile timeline-add`,
+  `health profile risk-add`
 - DICOM: `health dicom inspect PATH`, `health dicom dose PATH`, `health dicom import PATH`,
   `health dicom dose-screen PATH`
 - Database: `health db version`, `health db migrations`, `health db upgrade`, `health db verify`
@@ -40,6 +47,10 @@ Mutation gate examples:
 
 - `health symptoms add ... --dry-run --json`, then the same arguments with `--confirm --json`.
 - `health followup postpone ID ... --dry-run --json`, then `--confirm --json`.
+- `health profile scar-add ... --dry-run --json`, display evidence type and uncertainty, then use
+  the same arguments with `--confirm --json` only after explicit confirmation.
+- `health profile image-add FILE ... --dry-run --json` stores a hash-backed local photo candidate;
+  confirmation permits change tracking only, never visual diagnosis.
 - `health dicom dose-screen PATH --dry-run --json`, then
   `health dicom dose-screen PATH --confirm --candidate-ids ID1,ID2 --json`.
 - General report imports first save parser candidates; use `record candidates` and explicitly pass
