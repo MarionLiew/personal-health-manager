@@ -16,7 +16,7 @@ class ErrorDetail(BaseModel):
 class ResponseEnvelope(BaseModel):
     status: Literal["success", "error"]
     action: str
-    data: dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] | None = None
     warnings: list[str] = Field(default_factory=list)
     uncertainties: list[str] = Field(default_factory=list)
     source_records: list[str] = Field(default_factory=list)

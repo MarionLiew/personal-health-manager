@@ -1,0 +1,6 @@
+FICTIONAL CT DOSE SCREEN
+Protocol: Neck Routine
+Series No: 2 CTDIvol: 4.20 mGy DLP: 84.00 mGy.cm kVp: 120 mAs: 80
+Series No: 3 CTDIvol: 5.10 mGy DLP: 102.00 mGy.cm kVp: 120 mAs: 90
+Total DLP: 186.00 mGy.cm
+Phantom: 32 cm

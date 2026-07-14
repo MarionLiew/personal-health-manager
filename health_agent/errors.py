@@ -20,3 +20,7 @@ class UnsafePath(HealthAgentError):
 
 class ValidationFailure(HealthAgentError):
     code = "VALIDATION_ERROR"
+
+
+class OcrUnavailable(HealthAgentError):
+    code = "OCR_UNAVAILABLE"

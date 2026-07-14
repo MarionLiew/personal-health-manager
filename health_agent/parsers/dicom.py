@@ -37,6 +37,14 @@ SAFE_TAGS = (
     "SeriesNumber",
     "IrradiationEventUID",
     "AcquisitionUID",
+    "AcquisitionType",
+    "CTDIvol",
+    "Exposure",
+    "ExposureInuAs",
+    "KVP",
+    "SpiralPitchFactor",
+    "SingleCollimationWidth",
+    "TotalCollimationWidth",
 )
 RECONSTRUCTION_WORDS = {"mpr", "vr", "3d", "recon", "reconstruction", "bone", "soft tissue"}
 
@@ -82,11 +90,16 @@ def acquisition_key(item: DicomItem) -> tuple[str, ...] | None:
         return ("irradiation", str(metadata["IrradiationEventUID"]))
     if metadata.get("AcquisitionUID"):
         return ("acquisition", str(metadata["AcquisitionUID"]))
+    if metadata.get("AcquisitionNumber"):
+        return (
+            "number",
+            str(metadata.get("StudyInstanceUID")),
+            str(metadata.get("AcquisitionNumber")),
+        )
     return (
-        "fallback",
+        "series",
         str(metadata.get("StudyInstanceUID")),
-        str(metadata.get("AcquisitionNumber")),
-        str(metadata.get("ProtocolName")),
+        str(metadata.get("SeriesInstanceUID")),
     )
 
 
@@ -98,4 +111,42 @@ def unique_acquisitions(items: list[DicomItem]) -> list[DicomItem]:
         if key is not None and key not in seen:
             seen.add(key)
             result.append(item)
+    return result
+
+
+def _number(value: object) -> float | None:
+    try:
+        return float(str(value)) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def metadata_dose_events(items: list[DicomItem]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for item in unique_acquisitions(items):
+        metadata = item.metadata
+        exposure_uas = _number(metadata.get("ExposureInuAs"))
+        series_number = _number(metadata.get("SeriesNumber"))
+        result.append(
+            {
+                "study_instance_uid": metadata.get("StudyInstanceUID"),
+                "series_instance_uid": metadata.get("SeriesInstanceUID"),
+                "irradiation_event_uid": metadata.get("IrradiationEventUID"),
+                "acquisition_uid": metadata.get("AcquisitionUID"),
+                "series_number": int(series_number) if series_number is not None else None,
+                "acquisition_type": metadata.get("AcquisitionType") or "unknown",
+                "protocol_name": metadata.get("ProtocolName") or metadata.get("SeriesDescription"),
+                "body_region": metadata.get("BodyPartExamined"),
+                "study_date": metadata.get("StudyDate"),
+                "study_time": metadata.get("StudyTime"),
+                "modality": metadata.get("Modality"),
+                "ctdi_vol_mgy": _number(metadata.get("CTDIvol")),
+                # DLP is intentionally never inferred from slice count or scan parameters.
+                "dlp_mgy_cm": None,
+                "tube_voltage_kvp": _number(metadata.get("KVP")),
+                "tube_current_mas": _number(metadata.get("Exposure"))
+                or (exposure_uas / 1000 if exposure_uas is not None else None),
+                "pitch": _number(metadata.get("SpiralPitchFactor")),
+            }
+        )
     return result

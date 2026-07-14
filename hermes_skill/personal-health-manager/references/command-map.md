@@ -6,7 +6,16 @@ confirmation for mutations.
 - Environment: `health status`, `health doctor`
 - General report: `health record import FILE`, `health record list`, `health record show ID`,
   `health record undo-import IMPORT_ID`
-- DICOM: `health dicom inspect PATH`, `health dicom dose PATH`
+- Symptoms: `health symptoms add`, `health symptoms update ID`, `health symptoms resolve ID`,
+  `health symptoms reopen ID`, `health symptoms active`, `health symptoms timeline`
+- Follow-up: `health followup add`, `health followup list`, `health followup pending`,
+  `health followup upcoming`, `health followup overdue`, `health followup show ID`,
+  `health followup postpone ID`, `health followup complete ID`, `health followup cancel ID`
+- Appointments: `health appointments add`, `health appointments list`,
+  `health appointments upcoming`, `health appointments show ID`,
+  `health appointments complete ID`, `health appointments cancel ID`
+- DICOM: `health dicom inspect PATH`, `health dicom dose PATH`, `health dicom import PATH`,
+  `health dicom dose-screen PATH`
 - Database: `health db version`, `health db migrations`, `health db upgrade`, `health db verify`
 - Candidates: `health record candidates IMPORT_ID`, `health record confirm-candidates IMPORT_ID`,
   `health record reject-candidates IMPORT_ID`
@@ -23,10 +32,18 @@ confirmation for mutations.
 - Backup: `health backup create`, `health backup list`, `health backup verify FILE`,
   `health backup restore FILE`
 
-Commands in the product plan for labs, lesions, symptoms, imaging ledger, radiation ledger, timeline,
-follow-up, Apple Health, lifestyle, assessment, visit summary and doctor questions must be used only
-after `health <group> --help` confirms they exist. Never emulate a missing command with direct file or
-database access.
+Commands in the product plan for Apple Health, lifestyle, assessment and other future features must
+be used only after `health <group> --help` confirms they exist. Never emulate a missing command with
+direct file or database access.
+
+Mutation gate examples:
+
+- `health symptoms add ... --dry-run --json`, then the same arguments with `--confirm --json`.
+- `health followup postpone ID ... --dry-run --json`, then `--confirm --json`.
+- `health dicom dose-screen PATH --dry-run --json`, then
+  `health dicom dose-screen PATH --confirm --candidate-ids ID1,ID2 --json`.
+- General report imports first save parser candidates; use `record candidates` and explicitly pass
+  only accepted IDs to `record confirm-candidates`. Never confirm every candidate implicitly.
 
 For a WeChat file, use only the exact local cache path supplied by Hermes and accepted by CLI path
 validation. A rejected path must be copied/approved through deployment configuration by the operator;

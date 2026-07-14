@@ -6,8 +6,9 @@ Hermes 只能调用 CLI，不能执行 SQL。
 
 ## 当前版本
 
-版本 `0.2.0` 已实现逐版本数据库迁移、中文医疗报告候选、局部确认、化验趋势、病灶追踪、
-DICOM RDSR 解析和 CT 辐射账本。Apple Health、生活方式和正式微信部署仍未实现。详见
+版本 `0.3.0` 已实现数据库迁移 3、症状时间轴、复查/复诊和预约管理、科室相关就诊摘要、
+病理与医生意见候选、Dose Screen 局部确认、普通 DICOM 剂量字段回退、扩充化验映射和
+统一 JSON 错误。Apple Health、生活方式和正式微信部署仍未实现。详见
 [开发计划](docs/DEVELOPMENT_PLAN.md)。
 
 ## 安装与初始化
@@ -35,4 +36,19 @@ uv run ruff check .
 
 普通报告先 `record import --dry-run`，确认保存候选后，用 `record candidates IMPORT_ID`
 查看并通过 `record confirm-candidates` 局部确认。DICOM 剂量也必须先 dry-run；只有结构化
-RDSR 可直接在确认后作为设备记录入账，Dose Screen OCR 仍需后续候选确认能力。
+RDSR 可在确认后作为设备记录入账；Dose Screen 必须按候选 ID 局部确认，Total DLP 不与
+事件 DLP 重复累计。普通 DICOM 缺失 DLP 时保持为空，不从切片数推算有效剂量。
+
+常用日常管理命令：
+
+```bash
+uv run health symptoms add --name 咽喉疼痛 --location 咽喉 --dry-run --json
+uv run health followup add --title 影像复查 --due '6至12个月' --dry-run --json
+uv run health followup pending --json
+uv run health visit-summary --department 耳鼻喉科 --json
+uv run health doctor-questions --department 耳鼻喉科 --json
+uv run health dicom dose-screen data/imports/DOSE_SCREEN.txt --dry-run --json
+```
+
+所有 `--json` 错误统一写入 stdout，使用稳定错误码并以非零状态退出；不会向微信输出堆栈、
+数据库路径或原始隐私字段。

@@ -95,7 +95,7 @@ def missing_command(json_output: bool = typer.Option(False, "--json")) -> None:
         rows = [
             exposure_row(item)
             for item in active_exposures(session)
-            if item.data_quality == "insufficient_data"
+            if item.data_quality == "insufficient_data" or item.details.get("dose_incomplete")
         ]
     emit("radiation.missing-dose-data", {"exposures": rows}, json_output=json_output)
 

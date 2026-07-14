@@ -1,6 +1,6 @@
 ---
 name: personal-health-manager
-description: Manage local personal health records through the tested `health` CLI. Use for WeChat requests to preview/confirm or undo report, laboratory, imaging, DICOM, radiation-dose, and Apple Health imports; query symptom, lesion, lab, weight, sleep, activity, recovery, inflammation-evidence and follow-up trends; assess whether a test merits clinician discussion; identify emergency routing signals; prepare visit summaries/questions; or create, verify and restore backups.
+description: Manage local personal health records through the tested `health` CLI. Use for WeChat requests to record or update symptoms; create, postpone, complete, or query follow-ups and appointments; preview, partially confirm, reject, or undo medical reports, clinician opinions, pathology, DICOM, and CT Dose Screen candidates; query laboratory, lesion, imaging and radiation histories; identify emergency routing signals; prepare department-specific visit summaries and data-backed doctor questions; or create, verify and restore backups.
 ---
 
 # Personal Health Manager
@@ -28,8 +28,14 @@ results or work around the CLI.
    `user_report` or `system_inference` into `source_fact` or `clinician_opinion`.
 5. Begin long WeChat responses with a short summary. Do not repeat large report bodies.
 
+For candidate confirmation, show candidate ID, source text, field value, confidence and uncertainty.
+Allow the user to confirm or reject a subset. Never auto-confirm a low-confidence number, date,
+laterality, pathology status or Dose Screen value. Keep Total DLP separate from event DLP.
+
 Read [references/command-map.md](references/command-map.md) when selecting a command. Do not infer a
 command from memory if it is absent there; check `health --help` and the relevant group help.
+Read [references/wechat-examples.md](references/wechat-examples.md) for mutation and partial-
+confirmation dialogue patterns.
 
 ## Medical safety
 
@@ -42,4 +48,3 @@ For risk or examination-necessity replies, use: 当前问题, 已知事实, 支�
 降低风险或不支持严重疾病的证据, 尚不确定的信息, 当前行动等级, 建议下一步,
 需要立即就医的情况, 数据来源. Preserve action levels A-E exactly. If level A is returned, advise
 immediate real-world emergency care and state that this system is not an emergency service.
-

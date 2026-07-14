@@ -11,4 +11,9 @@ if grep -Eiq '(sqlite3[[:space:]]+[^`]|psql[[:space:]]+[^`]|health\.sqlite3)' "$
   echo "Skill contains a prohibited direct database instruction" >&2
   exit 1
 fi
+grep -q 'health symptoms add' "$SKILL/references/command-map.md"
+grep -q 'health followup postpone' "$SKILL/references/command-map.md"
+grep -q 'health dicom dose-screen' "$SKILL/references/command-map.md"
+grep -q -- '--candidate-ids' "$SKILL/references/wechat-examples.md"
+grep -q 'Never run a database client' "$SKILL/SKILL.md"
 echo "Skill structure and CLI integration verified"

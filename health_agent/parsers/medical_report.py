@@ -22,6 +22,29 @@ LAB_ALIASES = {
     "转铁蛋白饱和度": ("转铁蛋白饱和度", "TSAT"),
     "转铁蛋白": ("转铁蛋白", "TRF"),
     "总铁结合力": ("总铁结合力", "TIBC"),
+    "丙氨酸氨基转移酶": ("丙氨酸氨基转移酶", "谷丙转氨酶", "ALT", "GPT"),
+    "天门冬氨酸氨基转移酶": ("天门冬氨酸氨基转移酶", "谷草转氨酶", "AST", "GOT"),
+    "碱性磷酸酶": ("碱性磷酸酶", "ALP"),
+    "γ-谷氨酰转移酶": ("γ-谷氨酰转移酶", "谷氨酰转肽酶", "GGT", "γ-GT"),
+    "总胆红素": ("总胆红素", "TBIL", "Total Bilirubin"),
+    "直接胆红素": ("直接胆红素", "DBIL", "Direct Bilirubin"),
+    "总蛋白": ("总蛋白", "TP", "Total Protein"),
+    "白蛋白": ("白蛋白", "ALB", "Albumin"),
+    "球蛋白": ("球蛋白", "GLB", "Globulin"),
+    "肌酐": ("肌酐", "CREA", "Creatinine"),
+    "尿素": ("尿素", "尿素氮", "UREA", "BUN"),
+    "尿酸": ("尿酸", "UA", "Uric Acid"),
+    "估算肾小球滤过率": ("估算肾小球滤过率", "eGFR"),
+    "胱抑素C": ("胱抑素C", "Cystatin C", "CysC"),
+    "促甲状腺激素": ("促甲状腺激素", "TSH"),
+    "游离三碘甲状腺原氨酸": ("游离三碘甲状腺原氨酸", "FT3", "Free T3"),
+    "游离甲状腺素": ("游离甲状腺素", "FT4", "Free T4"),
+    "总三碘甲状腺原氨酸": ("总三碘甲状腺原氨酸", "总T3", "TT3", "T3"),
+    "总甲状腺素": ("总甲状腺素", "总T4", "TT4", "T4"),
+    "甲状腺过氧化物酶抗体": ("甲状腺过氧化物酶抗体", "TPOAb", "TPO-Ab"),
+    "甲状腺球蛋白抗体": ("甲状腺球蛋白抗体", "TgAb", "Tg-Ab"),
+    "促甲状腺激素受体抗体": ("促甲状腺激素受体抗体", "TRAb", "TR-Ab"),
+    "降钙素原": ("降钙素原", "PCT", "Procalcitonin"),
 }
 
 REPORT_RULES = (
@@ -94,7 +117,9 @@ def _lab_candidates(
             value = float(values[0].group())
             range_match = re.search(rf"({number})\s*[-~–—]\s*({number})", tail[values[0].end() :])
             unit_match = re.search(
-                r"(10\^?9/L|10\^?12/L|×10[⁹¹²]/L|g/L|mg/L|mg/dL|µg/dL|mmol/L|µmol/L|umol/L|ng/mL|%|mm/h)",
+                r"(10\^?9/L|10\^?12/L|×10[⁹¹²]/L|U/L|IU/L|g/L|mg/L|mg/dL|"
+                r"µg/dL|mmol/L|µmol/L|umol/L|ng/mL|ng/L|pg/mL|mIU/L|µIU/mL|"
+                r"pmol/L|mL/min/1\.73m2|%|mm/h)",
                 tail,
                 re.IGNORECASE,
             )
@@ -204,6 +229,137 @@ def _imaging_candidates(
     return candidates
 
 
+def _pathology_candidate(text: str, document_hash: str) -> list[dict[str, Any]]:
+    if not any(word in text for word in ("病理报告", "病理诊断")):
+        return []
+    normalized = re.sub(r"\s+", "", text)
+    if re.search(r"(?:未见|无|不支持)恶性", normalized):
+        malignancy = "negative"
+    elif "良性" in normalized:
+        malignancy = "benign"
+    elif re.search(r"(?:可疑|疑似)恶性", normalized):
+        malignancy = "suspicious"
+    elif re.search(r"(?:不能排除|性质待定|不确定)", normalized):
+        malignancy = "indeterminate"
+    elif "恶性" in normalized:
+        malignancy = "malignant"
+    else:
+        malignancy = "not_stated"
+    site = next(
+        (part for part in ("甲状腺", "肺", "淋巴结", "胃", "肠", "乳腺") if part in text), None
+    )
+    payload = {
+        "specimen_type": next(
+            (word for word in ("活检", "切除标本", "穿刺") if word in text), None
+        ),
+        "specimen_site": site,
+        "laterality": "左" if "左侧" in text else "右" if "右侧" in text else None,
+        "procedure_type": next((word for word in ("穿刺", "活检", "切除") if word in text), None),
+        "pathology_description": text,
+        "diagnosis_text": text,
+        "malignancy_status": malignancy,
+        "grade": None,
+        "margin_status": None,
+        "immunohistochemistry": None,
+        "molecular_findings": None,
+        "recommendation": next(
+            (line.strip() for line in text.splitlines() if "建议" in line), None
+        ),
+    }
+    return [
+        {
+            "id": _candidate_id(document_hash, "pathology", 0, payload),
+            "candidate_type": "pathology",
+            "payload": payload,
+            "original_text": text,
+            "original_offset": 0,
+            "confidence": 0.92 if malignancy != "not_stated" else 0.72,
+        }
+    ]
+
+
+def _clinical_opinion_candidate(text: str, document_hash: str) -> list[dict[str, Any]]:
+    if not any(word in text for word in ("门诊诊断", "医生意见", "处理意见", "专科意见")):
+        return []
+    if re.search(r"(?:已|明确)排除", text):
+        status = "excluded"
+    elif "建议排除" in text:
+        status = "unclear"
+    elif re.search(r"(?:确诊|明确诊断)", text):
+        status = "confirmed"
+    elif re.search(r"(?:疑似|怀疑)", text):
+        status = "suspected"
+    elif "考虑" in text:
+        status = "considered"
+    elif "可能性小" in text:
+        status = "less_likely"
+    elif "既往" in text:
+        status = "historical"
+    else:
+        status = "unclear"
+    recommendation = next((line.strip() for line in text.splitlines() if "建议" in line), None)
+    payload = {
+        "clinician_specialty": None,
+        "assessment_text": text,
+        "diagnosis_status": status,
+        "recommendation_text": recommendation,
+        "recommended_test": next(
+            (
+                test
+                for test in ("CT", "MRI", "超声", "病理")
+                if recommendation and test in recommendation
+            ),
+            None,
+        ),
+        "followup_interval": None,
+        "medication_or_treatment": None,
+        "uncertainty_text": "建议排除并不等于已经排除" if "建议排除" in text else None,
+    }
+    return [
+        {
+            "id": _candidate_id(document_hash, "clinical_opinion", 0, payload),
+            "candidate_type": "clinical_opinion",
+            "payload": payload,
+            "original_text": text,
+            "original_offset": 0,
+            "confidence": 0.88,
+        }
+    ]
+
+
+def _followup_candidates(
+    text: str, document_hash: str, examination_date: str | None
+) -> list[dict[str, Any]]:
+    match = re.search(r"建议\s*(\d+)\s*(?:至|到|[-~])\s*(\d+)\s*个?月(?:后)?复查", text)
+    if not match:
+        match = re.search(r"(\d+)\s*个?月后(?:复查|复诊)", text)
+    if not match:
+        return []
+    minimum, maximum = (
+        int(match[1]),
+        int(match[2]) if match.lastindex and match.lastindex >= 2 else int(match[1]),
+    )
+    payload = {
+        "title": "报告建议复查",
+        "category": "imaging_followup",
+        "interval_months_min": minimum,
+        "interval_months_max": maximum,
+        "base_date": examination_date,
+        "original_due_text": match.group(0),
+        "recommendation_source_type": "clinician_opinion",
+    }
+    return [
+        {
+            "id": _candidate_id(document_hash, "followup_plan", match.start(), payload),
+            "candidate_type": "followup_plan",
+            "payload": payload,
+            "original_text": match.group(0),
+            "original_offset": match.start(),
+            "confidence": 0.94 if examination_date else 0.78,
+        }
+    ]
+
+
 def parse_medical_report(text: str, document_hash: str) -> ParsedReport:
     report_type, confidence = _classify(text)
     examination_date = _date(text)
@@ -211,6 +367,9 @@ def parse_medical_report(text: str, document_hash: str) -> ParsedReport:
     title = next((line.strip() for line in text.splitlines() if line.strip()), None)
     candidates = _lab_candidates(text, document_hash, examination_date)
     candidates.extend(_imaging_candidates(text, document_hash, report_type, examination_date))
+    candidates.extend(_pathology_candidate(text, document_hash))
+    candidates.extend(_clinical_opinion_candidate(text, document_hash))
+    candidates.extend(_followup_candidates(text, document_hash, examination_date))
     recognized_lines = {
         item["original_text"] for item in candidates if "\n" not in item["original_text"]
     }

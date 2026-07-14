@@ -157,7 +157,6 @@ def make_record_model(name: str, table_name: str) -> type[Base]:
 # Records whose domain-specific fields evolve are stored in validated `details` JSON while all
 # provenance fields remain first-class columns. This limits unsafe schema churn in release one.
 SystemInference = make_record_model("SystemInference", "system_inferences")
-SymptomEpisode = make_record_model("SymptomEpisode", "symptom_episodes")
 LaboratoryReport = make_record_model("LaboratoryReport", "laboratory_reports")
 LaboratoryResult = make_record_model("LaboratoryResult", "laboratory_results")
 ImagingStudy = make_record_model("ImagingStudy", "imaging_studies")
@@ -171,8 +170,6 @@ Treatment = make_record_model("Treatment", "treatments")
 Medication = make_record_model("Medication", "medications")
 FamilyHistory = make_record_model("FamilyHistory", "family_histories")
 LifestyleRisk = make_record_model("LifestyleRisk", "lifestyle_risks")
-FollowUpPlan = make_record_model("FollowUpPlan", "follow_up_plans")
-Appointment = make_record_model("Appointment", "appointments")
 RiskAssessment = make_record_model("RiskAssessment", "risk_assessments")
 RadiationDoseEstimate = make_record_model("RadiationDoseEstimate", "radiation_dose_estimates")
 RadiopharmaceuticalAdministration = make_record_model(
@@ -195,6 +192,137 @@ RecommendationOutcome = make_record_model("RecommendationOutcome", "recommendati
 InflammationEvidenceAssessment = make_record_model(
     "InflammationEvidenceAssessment", "inflammation_evidence_assessments"
 )
+
+
+class SymptomEpisode(MedicalRecordMixin, Base):
+    __tablename__ = "symptom_episodes"
+    symptom_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    normalized_symptom_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, index=True
+    )
+    anatomical_region: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    anatomical_side: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="unknown", index=True)
+    severity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    severity_scale: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    frequency: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    duration_pattern: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    trigger: Mapped[str | None] = mapped_column(Text, nullable=True)
+    relieving_factor: Mapped[str | None] = mapped_column(Text, nullable=True)
+    aggravating_factor: Mapped[str | None] = mapped_column(Text, nullable=True)
+    associated_symptoms: Mapped[list[str]] = mapped_column(JSON, default=list)
+    user_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class SymptomObservation(Base):
+    __tablename__ = "symptom_observations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    symptom_episode_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("symptom_episodes.id"), index=True
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    severity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(String(32))
+    trigger: Mapped[str | None] = mapped_column(Text, nullable=True)
+    medication_or_action: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_type: Mapped[str] = mapped_column(String(32), default="user_report")
+    verified: Mapped[bool] = mapped_column(Boolean, default=True)
+    audit_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FollowUpPlan(MedicalRecordMixin, Base):
+    __tablename__ = "follow_up_plans"
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    related_record_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    related_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recommended_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    recommendation_source_type: Mapped[str] = mapped_column(String(32), default="user_report")
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_date_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_date_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    recurrence_rule: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    priority: Mapped[str] = mapped_column(String(32), default="normal")
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    department: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    requested_test: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    completion_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    postpone_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class FollowUpEvent(Base):
+    __tablename__ = "follow_up_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    followup_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("follow_up_plans.id"), index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(32))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    related_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    previous_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    audit_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
+class Appointment(MedicalRecordMixin, Base):
+    __tablename__ = "appointments"
+    department: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    clinician_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    institution: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    scheduled_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    scheduled_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    purpose: Mapped[str | None] = mapped_column(Text, nullable=True)
+    related_followup_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(32), default="scheduled", index=True)
+    preparation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    outcome_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class CandidateMixin:
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    import_session_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("import_sessions.id"), index=True
+    )
+    patient_id: Mapped[str] = mapped_column(String(36), ForeignKey("patients.id"), index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    original_text: Mapped[str] = mapped_column(Text)
+    confidence: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    formal_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ClinicalOpinionCandidate(CandidateMixin, Base):
+    __tablename__ = "clinical_opinion_candidates"
+
+
+class PathologyCandidate(CandidateMixin, Base):
+    __tablename__ = "pathology_candidates"
+
+
+class DoseScreenCandidate(CandidateMixin, Base):
+    __tablename__ = "dose_screen_candidates"
+    region: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class ReminderDeliveryLog(Base):
+    __tablename__ = "reminder_delivery_logs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    followup_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("follow_up_plans.id"), index=True
+    )
+    channel: Mapped[str] = mapped_column(String(32))
+    delivered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    status: Mapped[str] = mapped_column(String(32))
+    external_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class RadiationExposure(MedicalRecordMixin, Base):

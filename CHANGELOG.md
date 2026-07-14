@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 - 2026-07-14
+
+- Add schema migration 3 with symptom observations, follow-up events, appointments, structured
+  pathology/clinician-opinion candidates, Dose Screen candidates and reminder delivery logs.
+- Add audited symptom, follow-up and appointment CLI workflows with preview/confirmation gates,
+  fuzzy follow-up date ranges and department-relevant visit summaries/questions.
+- Add local Dose Screen candidate parsing and partial confirmation without Total/event DLP double
+  counting, plus ordinary DICOM acquisition de-duplication and incomplete metadata dose records.
+- Expand liver, kidney, thyroid and inflammation laboratory aliases and units; unify JSON errors.
+- Update the Hermes Skill command routing, safety gates and WeChat examples.
+
 ## 0.2.0 - 2026-07-14
 
 - Add transactional database migrations 0→1→2 with dry-run, backup, verification, audit, and

@@ -5,18 +5,77 @@ import sqlite3
 import sys
 from typing import Any
 
+import click
 import typer
 from sqlalchemy import inspect
+from typer._click.exceptions import ClickException as TyperClickException
+from typer.core import TyperGroup
 
 from health_agent import __version__
 from health_agent.config import load_settings
+from health_agent.constants import ActionLevel
 from health_agent.database.migrations import SCHEMA_VERSION, current_version, migrate
 from health_agent.database.session import build_engine
 from health_agent.errors import HealthAgentError
 from health_agent.safety.response_validator import validate_response
 from health_agent.schemas.responses import ErrorDetail, ResponseEnvelope
 
-app = typer.Typer(no_args_is_help=True, help="Local-first personal health record CLI.")
+
+def _action_from_args(values: object) -> str:
+    raw = values if isinstance(values, (list, tuple)) else []
+    tokens = [str(value) for value in raw if not str(value).startswith("-")]
+    return ".".join(tokens[:2]) or "cli"
+
+
+class JsonErrorGroup(TyperGroup):
+    def main(self, *args: object, **kwargs: object) -> object:
+        raw = kwargs.get("args")
+        if raw is None and args and isinstance(args[0], (list, tuple)):
+            raw = args[0]
+        if raw is None:
+            raw = sys.argv[1:]
+        json_requested = "--json" in raw
+        if not json_requested:
+            return super().main(*args, **kwargs)
+        kwargs["standalone_mode"] = False
+        try:
+            return super().main(*args, **kwargs)
+        except (click.ClickException, TyperClickException) as exc:
+            envelope = ResponseEnvelope(
+                status="error",
+                action=_action_from_args(raw),
+                data=None,
+                error=ErrorDetail(code="INVALID_ARGUMENT", message=str(exc), details={}),
+            )
+            click.echo(envelope.model_dump_json(indent=2))
+            raise SystemExit(2) from None
+        except HealthAgentError as exc:
+            envelope = ResponseEnvelope(
+                status="error",
+                action=_action_from_args(raw),
+                data=None,
+                error=ErrorDetail(code=exc.code, message=str(exc), details={}),
+            )
+            click.echo(envelope.model_dump_json(indent=2))
+            raise SystemExit(1) from None
+        except Exception:
+            envelope = ResponseEnvelope(
+                status="error",
+                action=_action_from_args(raw),
+                data=None,
+                error=ErrorDetail(
+                    code="INTERNAL_ERROR",
+                    message="The command could not be completed; review local redacted logs.",
+                    details={},
+                ),
+            )
+            click.echo(envelope.model_dump_json(indent=2))
+            raise SystemExit(1) from None
+
+
+app = typer.Typer(
+    cls=JsonErrorGroup, no_args_is_help=True, help="Local-first personal health record CLI."
+)
 
 
 def emit(
@@ -27,6 +86,7 @@ def emit(
     warnings: list[str] | None = None,
     uncertainties: list[str] | None = None,
     requires_confirmation: bool = False,
+    medical_action_level: ActionLevel | None = None,
 ) -> None:
     envelope = validate_response(
         ResponseEnvelope(
@@ -36,6 +96,7 @@ def emit(
             warnings=warnings or [],
             uncertainties=uncertainties or [],
             requires_confirmation=requires_confirmation,
+            medical_action_level=medical_action_level,
         )
     )
     if json_output:
@@ -45,10 +106,14 @@ def emit(
 
 
 def emit_error(action: str, exc: Exception) -> None:
-    code = exc.code if isinstance(exc, HealthAgentError) else "INTERNAL_ERROR"
-    message = str(exc) if isinstance(exc, HealthAgentError) else "Internal error"
+    if isinstance(exc, HealthAgentError):
+        code, message = exc.code, str(exc)
+    elif isinstance(exc, (ValueError, FileNotFoundError)):
+        code, message = "VALIDATION_ERROR", str(exc)
+    else:
+        code, message = "INTERNAL_ERROR", "Internal error"
     envelope = ResponseEnvelope(
-        status="error", action=action, error=ErrorDetail(code=code, message=message)
+        status="error", action=action, data=None, error=ErrorDetail(code=code, message=message)
     )
     typer.echo(envelope.model_dump_json(indent=2))
 
@@ -132,7 +197,18 @@ def doctor_command(json_output: bool = typer.Option(False, "--json")) -> None:
 
 
 # Imported last to avoid circular imports: command modules use the shared emit helpers above.
-from health_agent.cli import backup, db, dicom, labs, lesions, radiation, record  # noqa: E402
+from health_agent.cli import (  # noqa: E402
+    appointments,
+    backup,
+    db,
+    dicom,
+    followup,
+    labs,
+    lesions,
+    radiation,
+    record,
+    symptoms,
+)
 
 app.add_typer(record.app, name="record")
 app.add_typer(dicom.app, name="dicom")
@@ -141,6 +217,9 @@ app.add_typer(db.app, name="db")
 app.add_typer(labs.app, name="labs")
 app.add_typer(lesions.app, name="lesions")
 app.add_typer(radiation.app, name="radiation")
+app.add_typer(symptoms.app, name="symptoms")
+app.add_typer(followup.app, name="followup")
+app.add_typer(appointments.app, name="appointments")
 
 
 @app.command("visit-summary")
@@ -150,30 +229,11 @@ def visit_summary_command(
 ) -> None:
     from health_agent.database.migrations import migrate
     from health_agent.database.session import session_scope
-    from health_agent.services.laboratory_trends import lab_rows
-    from health_agent.services.lesion_tracker import active_lesions, measurement_rows
-    from health_agent.services.radiation_ledger import active_exposures, exposure_row
+    from health_agent.services.visit_summary import build_visit_summary
 
     migrate()
     with session_scope() as session:
-        lesions = active_lesions(session)
-        data = {
-            "department": department,
-            "confirmed_laboratory_results": lab_rows(session),
-            "lesions": [
-                {
-                    "id": lesion.id,
-                    **lesion.details,
-                    "measurements": measurement_rows(session, lesion.id),
-                }
-                for lesion in lesions
-            ],
-            "radiation_examinations": [exposure_row(item) for item in active_exposures(session)],
-            "evidence_note": (
-                "Only human-confirmed source facts from active imports are included; this summary "
-                "does not diagnose or replace clinician review."
-            ),
-        }
+        data = build_visit_summary(session, department)
     emit("visit-summary", data, json_output=json_output)
 
 
@@ -182,15 +242,19 @@ def doctor_questions_command(
     department: str = typer.Option(..., "--department"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
+    from health_agent.database.migrations import migrate
+    from health_agent.database.session import session_scope
+    from health_agent.services.visit_summary import build_visit_summary, questions_from_summary
+
+    migrate()
+    with session_scope() as session:
+        summary = build_visit_summary(session, department)
     emit(
         "doctor-questions",
         {
             "department": department,
-            "questions": [
-                "哪些已确认的趋势真正需要处理或复查？",
-                "旧影像是否足以比较，还是新检查会改变处理？",
-                "如需电离辐射检查，是否有可复用影像或合适的非电离替代？",
-            ],
+            "questions": questions_from_summary(summary),
+            "data_gaps": summary["data_gaps"],
         },
         json_output=json_output,
     )

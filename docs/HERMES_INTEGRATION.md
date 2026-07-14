@@ -10,6 +10,13 @@ The production WeChat flow must preview imported files, show uncertain fields an
 for explicit confirmation, then invoke the matching confirmed CLI command. Long results begin with a
 summary. Risk/test responses use the required medical sections and action level A-E.
 
+Version 0.3 supports symptom add/update/resolve/reopen, follow-up and appointment management,
+department-specific summaries, data-backed doctor questions, structured clinician/pathology
+candidates, Dose Screen partial confirmation and incomplete ordinary-DICOM dose queries. Dose Screen
+confirmation must pass only user-selected IDs; low-confidence OCR is never auto-confirmed and Total
+DLP is not added to event DLP. If no local OCR engine exists, the CLI returns `OCR_UNAVAILABLE` and
+does not send the image to an external service.
+
 Install and verify without overwriting an existing Skill:
 
 ```bash

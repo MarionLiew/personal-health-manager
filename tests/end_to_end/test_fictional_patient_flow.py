@@ -129,7 +129,7 @@ def test_complete_fictional_medical_and_dose_flow(isolated_env: Path) -> None:
         key = Fernet.generate_key().decode()
         backup = create_backup(isolated_env, isolated_env.parent, key)
         manifest, _ = read_backup(backup, key)
-        assert manifest["schema_version"] == 2
+        assert manifest["schema_version"] == 3
     finally:
         for path in paths:
             path.unlink(missing_ok=True)

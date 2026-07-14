@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,12 +12,16 @@ from health_agent.cli.main import emit, emit_error
 from health_agent.config import load_settings
 from health_agent.database.migrations import migrate
 from health_agent.database.models import (
+    ClinicalOpinionCandidate,
+    Diagnosis,
+    FollowUpPlan,
     ImagingReport,
     ImportSession,
     LaboratoryReport,
     LaboratoryResult,
     Lesion,
     LesionMeasurement,
+    PathologyCandidate,
     RadiationExposure,
     RecordCandidate,
     SourceDocument,
@@ -126,19 +131,33 @@ def import_record(
                 metadata={"parser_version": "1", "import_id": import_session.id},
             )
             for candidate in preview.candidates.get("items", []):
-                session.add(
-                    RecordCandidate(
-                        id=candidate["id"],
-                        import_session_id=import_session.id,
-                        patient_id="local-primary",
-                        candidate_type=candidate["candidate_type"],
-                        source_type="system_inference",
-                        payload=candidate["payload"],
-                        original_text=candidate["original_text"],
-                        original_offset=candidate["original_offset"],
-                        confidence=candidate["confidence"],
-                    )
+                record_candidate = RecordCandidate(
+                    id=candidate["id"],
+                    import_session_id=import_session.id,
+                    patient_id="local-primary",
+                    candidate_type=candidate["candidate_type"],
+                    source_type="system_inference",
+                    payload=candidate["payload"],
+                    original_text=candidate["original_text"],
+                    original_offset=candidate["original_offset"],
+                    confidence=candidate["confidence"],
                 )
+                session.add(record_candidate)
+                specialized = {
+                    "clinical_opinion": ClinicalOpinionCandidate,
+                    "pathology": PathologyCandidate,
+                }.get(candidate["candidate_type"])
+                if specialized:
+                    session.add(
+                        specialized(
+                            id=candidate["id"],
+                            import_session_id=import_session.id,
+                            patient_id="local-primary",
+                            payload=candidate["payload"],
+                            original_text=candidate["original_text"],
+                            confidence=candidate["confidence"],
+                        )
+                    )
             data.update(
                 {
                     "source_document_id": source.id,
@@ -298,6 +317,56 @@ def _formalize_candidate(
         session.add(measurement)
         session.flush()
         return "LesionMeasurement", measurement.id
+    if candidate.candidate_type in {"clinical_opinion", "pathology"}:
+        record = Diagnosis(**common)
+        record.source_type = (
+            "clinician_opinion" if candidate.candidate_type == "clinical_opinion" else "source_fact"
+        )
+        session.add(record)
+        session.flush()
+        specialized_model = (
+            ClinicalOpinionCandidate
+            if candidate.candidate_type == "clinical_opinion"
+            else PathologyCandidate
+        )
+        specialized = session.get(specialized_model, candidate.id)
+        if specialized:
+            specialized.status = "confirmed"
+            specialized.formal_record_id = record.id
+            specialized.reviewed_at = datetime.now(UTC)
+        return "Diagnosis", record.id
+    if candidate.candidate_type == "followup_plan":
+        payload = candidate.payload
+        base = (
+            datetime.fromisoformat(payload["base_date"])
+            if payload.get("base_date")
+            else datetime.now(UTC)
+        )
+
+        def plus_months(value: datetime, months: int) -> datetime:
+            month = value.month - 1 + months
+            year, month = value.year + month // 12, month % 12 + 1
+            return value.replace(
+                year=year, month=month, day=min(value.day, calendar.monthrange(year, month)[1])
+            )
+
+        start = plus_months(base, int(payload["interval_months_min"]))
+        end = plus_months(base, int(payload["interval_months_max"]))
+        plan = FollowUpPlan(
+            **common,
+            title=payload["title"],
+            category=payload["category"],
+            recommendation_source_type="clinician_opinion",
+            due_date=None,
+            due_date_start=start,
+            due_date_end=end,
+            priority="normal",
+            status="pending",
+            reason=candidate.original_text,
+        )
+        session.add(plan)
+        session.flush()
+        return "FollowUpPlan", plan.id
     raise ValueError(f"Unsupported candidate type: {candidate.candidate_type}")
 
 
@@ -373,6 +442,13 @@ def reject_candidates(
                 raise typer.BadParameter(f"Candidate is already confirmed: {candidate.id}")
             candidate.status = "rejected"
             candidate.reviewed_at = datetime.now(UTC)
+            specialized_model = {
+                "clinical_opinion": ClinicalOpinionCandidate,
+                "pathology": PathologyCandidate,
+            }.get(candidate.candidate_type)
+            if specialized_model and (specialized := session.get(specialized_model, candidate.id)):
+                specialized.status = "rejected"
+                specialized.reviewed_at = datetime.now(UTC)
         audit(
             session,
             "record.reject-candidates",
@@ -418,6 +494,8 @@ def undo_import(
             if source:
                 source.revoked = True
             for model in (
+                Diagnosis,
+                FollowUpPlan,
                 LaboratoryReport,
                 LaboratoryResult,
                 ImagingReport,

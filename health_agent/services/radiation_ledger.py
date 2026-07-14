@@ -33,6 +33,7 @@ def exposure_row(exposure: RadiationExposure) -> dict[str, Any]:
         "acquisition_count": exposure.acquisition_count,
         "dose_data_source": exposure.dose_data_source,
         "data_quality": exposure.data_quality,
+        "dose_incomplete": bool(exposure.details.get("dose_incomplete")),
         "total_dlp_mgy_cm": exposure.details.get("total_dlp_mgy_cm"),
         "event_dlp_sum_mgy_cm": exposure.details.get("event_dlp_sum_mgy_cm"),
         "dlp_difference_mgy_cm": exposure.details.get("dlp_difference_mgy_cm"),
@@ -120,7 +121,10 @@ def summary(exposures: list[RadiationExposure]) -> dict[str, Any]:
         "effective_dose_note": (
             "No conversion is performed without a versioned region/age coefficient and uncertainty."
         ),
-        "missing_dose_records": sum(item.data_quality == "insufficient_data" for item in exposures),
+        "missing_dose_records": sum(
+            item.data_quality == "insufficient_data" or bool(item.details.get("dose_incomplete"))
+            for item in exposures
+        ),
         "data_completeness": {
             "with_machine_record": sum(
                 item.data_quality == "exact_machine_record" for item in exposures
