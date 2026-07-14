@@ -1,0 +1,4 @@
+interface:
+  display_name: "Personal Health Manager"
+  short_description: "Local health records and care-prep through the health CLI"
+  default_prompt: "Use $personal-health-manager to safely manage local health records and prepare for care."

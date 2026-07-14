@@ -1,0 +1,7 @@
+version: "1.0.0"
+policy: >-
+  Production medical rules require a traceable government, national guideline, professional
+  society, formal standard, peer-reviewed, or official device/data-standard source.
+references: []
+status: "No production clinical prediction rules bundled; no source has been fabricated."
+
