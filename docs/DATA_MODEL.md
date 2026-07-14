@@ -11,6 +11,7 @@ follow-up, assessment, recommendation, and evidence entities specified in the pr
 `RadiationExposure` and `RadiationAcquisition` keep scanner values distinct from estimates.
 `HealthSample` uses patient+HealthKit UUID and patient+content hash uniqueness constraints.
 
-Schema version 1 is created by `health init`. Before any future destructive migration, create and
-verify a backup; restoration must target a new database until explicit confirmation.
-
+Schema version 1 is the baseline. Version 2 adds `record_candidates` so parser inferences remain
+separate from formal facts until partial human confirmation. `health db upgrade --confirm` creates a
+pre-migration SQLite backup for existing databases; failure restores the main file and removes stale
+WAL/SHM state. Every applied migration writes `schema_version` and `db.migrate` audit rows.

@@ -76,7 +76,7 @@ def scan_paths(root: Path) -> list[DicomItem]:
 
 def acquisition_key(item: DicomItem) -> tuple[str, ...] | None:
     metadata = item.metadata
-    if item.is_reconstruction:
+    if item.is_reconstruction or item.is_rdsr:
         return None
     if metadata.get("IrradiationEventUID"):
         return ("irradiation", str(metadata["IrradiationEventUID"]))

@@ -9,3 +9,6 @@ Alerts prompt review of repeats, overlapping ranges, multiphase acquisition, mis
 total-versus-series DLP, PET/SPECT radiopharmaceutical separation, and machine-versus-estimate
 confusion. Alerts do not block medically necessary care.
 
+Version 0.2 exposes list/show/acquisition, period/lifetime summary, by-region, missing-data,
+possible-duplicate and doctor-summary commands. It reports source quality and completeness. No mSv
+is produced unless a future version supplies a versioned region/age conversion method and uncertainty.

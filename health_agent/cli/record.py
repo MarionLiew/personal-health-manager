@@ -9,9 +9,18 @@ from sqlalchemy import select
 
 from health_agent.cli.main import emit, emit_error
 from health_agent.config import load_settings
-from health_agent.constants import SourceType
 from health_agent.database.migrations import migrate
-from health_agent.database.models import ImagingReport, ImportSession, SourceDocument
+from health_agent.database.models import (
+    ImagingReport,
+    ImportSession,
+    LaboratoryReport,
+    LaboratoryResult,
+    Lesion,
+    LesionMeasurement,
+    RadiationExposure,
+    RecordCandidate,
+    SourceDocument,
+)
 from health_agent.database.repository import audit
 from health_agent.database.session import session_scope
 from health_agent.importers.report import preview_report
@@ -61,7 +70,19 @@ def import_record(
                 select(SourceDocument).where(SourceDocument.sha256 == preview.sha256)
             )
             if existing and not existing.revoked:
-                data.update({"duplicate": True, "source_document_id": existing.id})
+                existing_import = session.scalar(
+                    select(ImportSession)
+                    .where(ImportSession.source_document_id == existing.id)
+                    .where(ImportSession.status != "undone")
+                    .order_by(ImportSession.created_at.desc())
+                )
+                data.update(
+                    {
+                        "duplicate": True,
+                        "source_document_id": existing.id,
+                        "import_id": existing_import.id if existing_import else None,
+                    }
+                )
                 emit("record.import", data, json_output=json_output)
                 return
             originals = settings.data_root / "reports" / "originals"
@@ -95,7 +116,7 @@ def import_record(
             )
             session.add(import_session)
             session.flush()
-            entry = audit(
+            audit(
                 session,
                 "record.import",
                 patient_id="local-primary",
@@ -104,26 +125,25 @@ def import_record(
                 file_hash=preview.sha256,
                 metadata={"parser_version": "1", "import_id": import_session.id},
             )
-            report = ImagingReport(
-                patient_id="local-primary",
-                source_type=SourceType.SOURCE_FACT.value,
-                source_document_id=source.id,
-                original_text=preview.text,
-                extraction_method=preview.parser,
-                extraction_version="1",
-                confidence=1.0 if preview.text else None,
-                verified=True,
-                verification_status="human_confirmed_source",
-                audit_id=entry.id,
-                details={"document_kind": "unclassified_medical_report"},
-            )
-            session.add(report)
-            session.flush()
+            for candidate in preview.candidates.get("items", []):
+                session.add(
+                    RecordCandidate(
+                        id=candidate["id"],
+                        import_session_id=import_session.id,
+                        patient_id="local-primary",
+                        candidate_type=candidate["candidate_type"],
+                        source_type="system_inference",
+                        payload=candidate["payload"],
+                        original_text=candidate["original_text"],
+                        original_offset=candidate["original_offset"],
+                        confidence=candidate["confidence"],
+                    )
+                )
             data.update(
                 {
                     "source_document_id": source.id,
-                    "record_id": report.id,
                     "import_id": import_session.id,
+                    "candidate_count": len(preview.candidates.get("items", [])),
                 }
             )
         emit("record.import", data, json_output=json_output)
@@ -172,6 +192,202 @@ def show_record(record_id: str, json_output: bool = typer.Option(False, "--json"
     emit("record.show", data, json_output=json_output)
 
 
+@app.command("candidates")
+def candidates_command(import_id: str, json_output: bool = typer.Option(False, "--json")) -> None:
+    migrate()
+    with session_scope() as session:
+        items = session.scalars(
+            select(RecordCandidate)
+            .where(RecordCandidate.import_session_id == import_id)
+            .order_by(RecordCandidate.original_offset, RecordCandidate.id)
+        ).all()
+        data = {
+            "import_id": import_id,
+            "candidates": [
+                {
+                    "id": item.id,
+                    "type": item.candidate_type,
+                    "source_type": item.source_type,
+                    "payload": item.payload,
+                    "original_text": item.original_text,
+                    "original_offset": item.original_offset,
+                    "confidence": item.confidence,
+                    "status": item.status,
+                    "formal_record_id": item.formal_record_id,
+                }
+                for item in items
+            ],
+        }
+    emit("record.candidates", data, json_output=json_output)
+
+
+def _formalize_candidate(
+    session,
+    candidate: RecordCandidate,
+    import_session: ImportSession,
+    audit_id: str,
+    lesion_id: str | None,
+) -> tuple[str, str]:
+    common = {
+        "patient_id": candidate.patient_id,
+        "source_type": "source_fact",
+        "source_document_id": import_session.source_document_id,
+        "occurred_at": (
+            datetime.fromisoformat(candidate.payload["examination_date"])
+            if candidate.payload.get("examination_date")
+            else None
+        ),
+        "original_text": candidate.original_text,
+        "extraction_method": "deterministic-parser+human-confirmation",
+        "extraction_version": "2",
+        "confidence": candidate.confidence,
+        "verified": True,
+        "verification_status": "human_confirmed",
+        "audit_id": audit_id,
+        "details": candidate.payload,
+    }
+    if candidate.candidate_type == "laboratory_result":
+        report = session.scalar(
+            select(LaboratoryReport).where(
+                LaboratoryReport.source_document_id == import_session.source_document_id
+            )
+        )
+        if report is None:
+            report = LaboratoryReport(
+                **{
+                    **common,
+                    "original_text": None,
+                    "details": {"report_type": "laboratory", "import_id": import_session.id},
+                }
+            )
+            session.add(report)
+            session.flush()
+        record = LaboratoryResult(**common)
+        record.details = {**candidate.payload, "laboratory_report_id": report.id}
+        session.add(record)
+        session.flush()
+        return "LaboratoryResult", record.id
+    if candidate.candidate_type == "imaging_report":
+        record = ImagingReport(**common)
+        session.add(record)
+        session.flush()
+        return "ImagingReport", record.id
+    if candidate.candidate_type == "lesion":
+        lesion = session.get(Lesion, lesion_id) if lesion_id else None
+        if lesion_id and lesion is None:
+            raise ValueError("Requested lesion link does not exist")
+        if lesion is not None:
+            for key in ("laterality", "anatomical_location"):
+                existing_value = lesion.details.get(key)
+                candidate_value = candidate.payload.get(key)
+                if existing_value and candidate_value and existing_value != candidate_value:
+                    raise ValueError(
+                        f"Candidate {key} does not match linked lesion; "
+                        "explicit correction required"
+                    )
+        if lesion is None:
+            lesion = Lesion(**common)
+            lesion.details = {
+                key: candidate.payload.get(key)
+                for key in ("lesion_kind", "laterality", "anatomical_location")
+            }
+            session.add(lesion)
+            session.flush()
+        measurement = LesionMeasurement(**common)
+        measurement.details = {**candidate.payload, "lesion_id": lesion.id}
+        session.add(measurement)
+        session.flush()
+        return "LesionMeasurement", measurement.id
+    raise ValueError(f"Unsupported candidate type: {candidate.candidate_type}")
+
+
+@app.command("confirm-candidates")
+def confirm_candidates(
+    import_id: str,
+    candidate_ids: str = typer.Option(..., "--candidate-ids"),
+    lesion_id: str | None = typer.Option(None, "--lesion-id"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    migrate()
+    requested = {value.strip() for value in candidate_ids.split(",") if value.strip()}
+    with session_scope() as session:
+        import_session = session.get(ImportSession, import_id)
+        if import_session is None or import_session.status == "undone":
+            raise typer.BadParameter("Active import not found")
+        candidates = session.scalars(
+            select(RecordCandidate)
+            .where(RecordCandidate.import_session_id == import_id)
+            .where(RecordCandidate.id.in_(requested))
+        ).all()
+        if {item.id for item in candidates} != requested:
+            raise typer.BadParameter("One or more candidate IDs do not belong to this import")
+        entry = audit(
+            session,
+            "record.confirm-candidates",
+            patient_id=import_session.patient_id,
+            entity_type="ImportSession",
+            entity_id=import_id,
+            metadata={"candidate_ids": sorted(requested)},
+        )
+        confirmed = []
+        for candidate in candidates:
+            if candidate.status == "confirmed":
+                confirmed.append(candidate.formal_record_id)
+                continue
+            if candidate.status == "rejected":
+                raise typer.BadParameter(f"Candidate was rejected: {candidate.id}")
+            record_type, record_id = _formalize_candidate(
+                session, candidate, import_session, entry.id, lesion_id
+            )
+            candidate.status = "confirmed"
+            candidate.reviewed_at = datetime.now(UTC)
+            candidate.formal_record_type = record_type
+            candidate.formal_record_id = record_id
+            confirmed.append(record_id)
+        data = {
+            "import_id": import_id,
+            "confirmed_candidate_ids": sorted(requested),
+            "formal_record_ids": confirmed,
+        }
+    emit("record.confirm-candidates", data, json_output=json_output)
+
+
+@app.command("reject-candidates")
+def reject_candidates(
+    import_id: str,
+    candidate_ids: str = typer.Option(..., "--candidate-ids"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    migrate()
+    requested = {value.strip() for value in candidate_ids.split(",") if value.strip()}
+    with session_scope() as session:
+        candidates = session.scalars(
+            select(RecordCandidate)
+            .where(RecordCandidate.import_session_id == import_id)
+            .where(RecordCandidate.id.in_(requested))
+        ).all()
+        if {item.id for item in candidates} != requested:
+            raise typer.BadParameter("One or more candidate IDs do not belong to this import")
+        for candidate in candidates:
+            if candidate.status == "confirmed":
+                raise typer.BadParameter(f"Candidate is already confirmed: {candidate.id}")
+            candidate.status = "rejected"
+            candidate.reviewed_at = datetime.now(UTC)
+        audit(
+            session,
+            "record.reject-candidates",
+            patient_id="local-primary",
+            entity_type="ImportSession",
+            entity_id=import_id,
+            metadata={"candidate_ids": sorted(requested)},
+        )
+    emit(
+        "record.reject-candidates",
+        {"import_id": import_id, "rejected_candidate_ids": sorted(requested)},
+        json_output=json_output,
+    )
+
+
 @app.command("undo-import")
 def undo_import(
     import_id: str,
@@ -201,6 +417,25 @@ def undo_import(
             source = session.get(SourceDocument, item.source_document_id)
             if source:
                 source.revoked = True
+            for model in (
+                LaboratoryReport,
+                LaboratoryResult,
+                ImagingReport,
+                Lesion,
+                LesionMeasurement,
+                RadiationExposure,
+            ):
+                formal_records = session.scalars(
+                    select(model).where(model.source_document_id == item.source_document_id)
+                ).all()
+                for formal in formal_records:
+                    formal.verified = False
+                    formal.verification_status = "revoked_by_import_undo"
+            candidates = session.scalars(
+                select(RecordCandidate).where(RecordCandidate.import_session_id == item.id)
+            ).all()
+            for candidate in candidates:
+                candidate.status = "revoked"
             audit(
                 session,
                 "record.undo-import",

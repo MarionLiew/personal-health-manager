@@ -24,6 +24,7 @@ def test_migration_is_idempotent_and_has_core_entities(isolated_env) -> None:
         "radiation_acquisitions",
         "health_samples",
         "inflammation_evidence_assessments",
+        "record_candidates",
     } <= tables
     assert current_version(engine) == SCHEMA_VERSION
     with session_scope(engine) as session:

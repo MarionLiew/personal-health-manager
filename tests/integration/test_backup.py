@@ -13,7 +13,7 @@ def test_encrypted_backup_verifies_and_restore_never_overwrites(isolated_env) ->
     key = Fernet.generate_key().decode()
     backup = create_backup(isolated_env, isolated_env.parent, key)
     manifest, database = read_backup(backup, key)
-    assert manifest["schema_version"] == 1
+    assert manifest["schema_version"] == 2
     assert database
     restored = isolated_env.parent / "restored.sqlite3"
     restore_to_new_file(backup, restored, key)

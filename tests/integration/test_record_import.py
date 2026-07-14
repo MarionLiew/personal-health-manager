@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from health_agent.cli.main import app
 from health_agent.config import ROOT
-from health_agent.database.models import AuditLog, ImagingReport, SourceDocument
+from health_agent.database.models import AuditLog, ImagingReport, RecordCandidate, SourceDocument
 from health_agent.database.session import build_engine, session_scope
 
 runner = CliRunner()
@@ -43,8 +43,16 @@ def test_dry_run_does_not_write_formal_record_and_confirm_is_idempotent(isolated
         engine = build_engine(isolated_env)
         with session_scope(engine) as session:
             assert session.scalar(select(func.count()).select_from(SourceDocument)) == 1
-            assert session.scalar(select(func.count()).select_from(ImagingReport)) == 1
-            assert session.scalar(select(func.count()).select_from(AuditLog)) == 1
+            assert session.scalar(select(func.count()).select_from(ImagingReport)) == 0
+            assert session.scalar(select(func.count()).select_from(RecordCandidate)) == 1
+            assert (
+                session.scalar(
+                    select(func.count())
+                    .select_from(AuditLog)
+                    .where(AuditLog.operation == "record.import")
+                )
+                == 1
+            )
     finally:
         path.unlink(missing_ok=True)
 
@@ -63,6 +71,13 @@ def test_undo_import_is_confirmed_and_audited(isolated_env) -> None:
         with session_scope(engine) as session:
             source = session.scalar(select(SourceDocument))
             assert source is not None and source.revoked is True
-            assert session.scalar(select(func.count()).select_from(AuditLog)) == 2
+            assert (
+                session.scalar(
+                    select(func.count())
+                    .select_from(AuditLog)
+                    .where(AuditLog.operation.like("record.%"))
+                )
+                == 2
+            )
     finally:
         path.unlink(missing_ok=True)

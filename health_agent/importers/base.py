@@ -26,5 +26,15 @@ def hash_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def hash_path(path: Path) -> str:
+    if path.is_file():
+        return hash_file(path)
+    digest = hashlib.sha256()
+    for item in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
+        digest.update(str(item.relative_to(path)).encode())
+        digest.update(hash_file(item).encode())
+    return digest.hexdigest()
+
+
 def detected_mime(path: Path) -> str:
     return mimetypes.guess_type(path.name)[0] or "application/octet-stream"

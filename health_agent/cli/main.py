@@ -131,13 +131,70 @@ def doctor_command(json_output: bool = typer.Option(False, "--json")) -> None:
     )
 
 
-if __name__ == "__main__":
-    app()
-
-
 # Imported last to avoid circular imports: command modules use the shared emit helpers above.
-from health_agent.cli import backup, dicom, record  # noqa: E402
+from health_agent.cli import backup, db, dicom, labs, lesions, radiation, record  # noqa: E402
 
 app.add_typer(record.app, name="record")
 app.add_typer(dicom.app, name="dicom")
 app.add_typer(backup.app, name="backup")
+app.add_typer(db.app, name="db")
+app.add_typer(labs.app, name="labs")
+app.add_typer(lesions.app, name="lesions")
+app.add_typer(radiation.app, name="radiation")
+
+
+@app.command("visit-summary")
+def visit_summary_command(
+    department: str = typer.Option(..., "--department"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    from health_agent.database.migrations import migrate
+    from health_agent.database.session import session_scope
+    from health_agent.services.laboratory_trends import lab_rows
+    from health_agent.services.lesion_tracker import active_lesions, measurement_rows
+    from health_agent.services.radiation_ledger import active_exposures, exposure_row
+
+    migrate()
+    with session_scope() as session:
+        lesions = active_lesions(session)
+        data = {
+            "department": department,
+            "confirmed_laboratory_results": lab_rows(session),
+            "lesions": [
+                {
+                    "id": lesion.id,
+                    **lesion.details,
+                    "measurements": measurement_rows(session, lesion.id),
+                }
+                for lesion in lesions
+            ],
+            "radiation_examinations": [exposure_row(item) for item in active_exposures(session)],
+            "evidence_note": (
+                "Only human-confirmed source facts from active imports are included; this summary "
+                "does not diagnose or replace clinician review."
+            ),
+        }
+    emit("visit-summary", data, json_output=json_output)
+
+
+@app.command("doctor-questions")
+def doctor_questions_command(
+    department: str = typer.Option(..., "--department"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    emit(
+        "doctor-questions",
+        {
+            "department": department,
+            "questions": [
+                "哪些已确认的趋势真正需要处理或复查？",
+                "旧影像是否足以比较，还是新检查会改变处理？",
+                "如需电离辐射检查，是否有可复用影像或合适的非电离替代？",
+            ],
+        },
+        json_output=json_output,
+    )
+
+
+if __name__ == "__main__":
+    app()
