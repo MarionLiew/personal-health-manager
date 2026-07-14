@@ -1,5 +1,18 @@
 # WeChat interaction examples
 
+## Read-only routing
+
+User: “查看我的健康概览”
+
+Run `health profile summary --json`. Return known long-term issues, current status, monitoring items,
+priorities, evidence sources and uncertainties. Do not produce a total health score.
+
+User: “整理我的耳鼻喉复诊资料”
+
+Run `health visit-summary --department 耳鼻喉科 --json`. Keep the returned evidence types and data
+gaps distinct. If the user also asks what to discuss, run
+`health doctor-questions --department 耳鼻喉科 --json`.
+
 ## Record and update a symptom
 
 User: “记录右侧咽喉痛，今天开始，4/10。”

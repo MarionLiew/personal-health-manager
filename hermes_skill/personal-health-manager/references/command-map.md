@@ -28,6 +28,7 @@ confirmation for mutations.
   `health record reject-candidates IMPORT_ID`
 - Laboratory: `health labs list`, `health labs trend --item ITEM`, `health labs compare --item ITEM`,
   `health labs report REPORT_ID`
+- Imaging: `health imaging list`
 - Lesions: `health lesions list`, `health lesions show ID`, `health lesions measurements ID`,
   `health lesions compare ID`
 - Radiation: `health radiation list`, `health radiation show ID`,
@@ -59,3 +60,6 @@ Mutation gate examples:
 For a WeChat file, use only the exact local cache path supplied by Hermes and accepted by CLI path
 validation. A rejected path must be copied/approved through deployment configuration by the operator;
 do not broaden access yourself.
+
+The command spellings above describe the `health` CLI. Invoke them by replacing the `health` prefix
+with `${HERMES_HOME:-$HOME/.hermes}/skills/personal-health-manager/tools/health.sh`.

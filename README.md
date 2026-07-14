@@ -6,10 +6,11 @@ Hermes 只能调用 CLI，不能执行 SQL。
 
 ## 当前版本
 
-版本 `0.4.0` 已实现数据库迁移 4 和 Personal Health Profile 长期管理层，并保留 0.3.0 的
+版本 `0.5.0` 已完成 Hermes v0.16/微信集成、CLI-only Skill 包装和只读影像列表，并保留
+数据库迁移 4 和 Personal Health Profile 长期管理层，以及 0.3.0 的
 症状时间轴、复查/复诊和预约管理、科室相关就诊摘要、
 病理与医生意见候选、Dose Screen 局部确认、普通 DICOM 剂量字段回退、扩充化验映射和
-统一 JSON 错误。Apple Health、生活方式和正式微信部署仍未实现。详见
+统一 JSON 错误。Apple Health 和生活方式模块仍未实现。详见
 [开发计划](docs/DEVELOPMENT_PLAN.md)。
 
 ## 安装与初始化
@@ -51,6 +52,7 @@ uv run health doctor-questions --department 耳鼻喉科 --json
 uv run health dicom dose-screen data/imports/DOSE_SCREEN.txt --dry-run --json
 uv run health profile summary --json
 uv run health profile priorities --json
+uv run health imaging list --json
 ```
 
 所有 `--json` 错误统一写入 stdout，使用稳定错误码并以非零状态退出；不会向微信输出堆栈、
@@ -59,3 +61,15 @@ uv run health profile priorities --json
 长期问题通过 `profile condition-add/scar-add/hpv-add/treatment-add/image-add/immune-add/risk-add`
 先预览后确认。照片仅用于大小、数量和外观的纵向记录，不进行自动诊断。Profile 只输出
 已知问题、变化、治疗、当前状态、风险因素、观察点和管理建议，不输出疾病概率或综合评分。
+
+Hermes 集成：
+
+```bash
+./hermes_skill/install.sh
+./hermes_skill/verify.sh
+hermes gateway restart
+hermes skills list
+```
+
+具体微信路由、权限和写操作确认流程见
+[Hermes 集成文档](docs/HERMES_INTEGRATION.md)。

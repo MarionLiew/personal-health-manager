@@ -2,7 +2,7 @@
 
 Status date: 2026-07-14.
 
-Current release: `0.4.0`; current schema: `4`.
+Current release: `0.5.0`; current schema: `4`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -15,7 +15,7 @@ Current release: `0.4.0`; current schema: `4`.
 - Phase 4 — complete for v0.3 scope: safe ZIP, DICOM discovery, semantic RDSR fields, Dose Screen
   candidates, ordinary-DICOM metadata fallback, acquisition/reconstruction deduplication and ledger.
 - Phase 5 — pending: Apple Health streaming import and lifestyle analyses.
-- Phase 6 — complete for v0.3 intents: a validated, installable, CLI-only Hermes Skill, guarded
+- Phase 6 — complete: a validated, installed, CLI-only Hermes Skill, guarded
   scripts, command routing and WeChat examples exist.
 - Phase 7 — complete for v0.3 scope: unit/integration/end-to-end daily management, DICOM, Dose Screen,
   migration, JSON error, encrypted backup and Hermes validation tests exist.

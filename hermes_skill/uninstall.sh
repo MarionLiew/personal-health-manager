@@ -12,4 +12,3 @@ if [[ ! -d "$TARGET" ]]; then
 fi
 rm -rf "$TARGET"
 echo "Removed $TARGET"
-

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 - 2026-07-14
+
+- Integrate the `personal-health-manager` Skill with the detected Hermes v0.16 default profile and
+  running Weixin gateway through a CLI-only wrapper.
+- Add safe install/update backup, uninstall, structural verification, Hermes discovery checks, and
+  explicit dry-run/confirmation instructions for every write operation.
+- Add `health imaging list --json`, exact Weixin intent examples, and deployment documentation for
+  Skill reload, permissions, testing, and medical safety boundaries.
+
 ## 0.4.0 - 2026-07-14
 
 - Add schema migration 4 and a single-user Personal Health Profile layer for long-term conditions,
