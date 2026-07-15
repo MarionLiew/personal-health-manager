@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from health_agent.cli.main import app
 from health_agent.config import ROOT
-from health_agent.database.models import AuditLog, Procedure, RecordCandidate
+from health_agent.database.models import AuditLog, Procedure, RecordCandidate, SourceDocument
 from health_agent.database.session import build_engine, session_scope
 
 runner = CliRunner()
@@ -75,6 +75,7 @@ def test_reparse_supersedes_only_stale_pending_candidates_and_is_audited(
         preview_payload = json.loads(preview.output)
         assert preview_payload["requires_confirmation"] is True
         assert preview_payload["data"]["report_type"] == "ultrasound"
+        assert preview_payload["data"]["institution"] == "虚构市第一医院"
         assert preview_payload["data"]["pending_candidate_ids_to_supersede"] == [legacy_id]
         assert preview_payload["data"]["protected_candidate_ids"] == [current_id]
         assert {item["candidate_type"] for item in preview_payload["data"]["candidates"]} == {
@@ -93,6 +94,10 @@ def test_reparse_supersedes_only_stale_pending_candidates_and_is_audited(
         with session_scope(engine) as session:
             assert session.get(RecordCandidate, legacy_id).status == "superseded"
             assert session.get(RecordCandidate, current_id).status == "confirmed"
+            assert (
+                session.get(SourceDocument, imported["source_document_id"]).institution
+                == "虚构市第一医院"
+            )
             assert (
                 session.scalar(
                     select(func.count())

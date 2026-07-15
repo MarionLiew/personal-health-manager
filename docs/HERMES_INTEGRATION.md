@@ -176,6 +176,12 @@ any protected confirmed/rejected IDs. Only after the user explicitly approves th
 repeat the command with `--confirm`. Reparse verifies the saved source hash, supersedes only pending
 candidates, creates an audit event and never confirms the replacement candidates automatically.
 
+The preview also includes `institution`. Hermes must show it as an unverified hospital/source field
+before confirmation. Confirmed reparse stores it on `SourceDocument`, while confirmed candidate
+details retain the same value for provenance. Exact source filtering is available through
+`record list --institution INSTITUTION --json`. OCR-derived hospital names remain subject to the
+same explicit review as dates, measurements, units, locations and laterality.
+
 If the CLI returns `UNSAFE_PATH`, Hermes must stop retrying, show the error code, and state “未导入”.
 It must never fall back to a prose summary that implies the source entered the system.
 

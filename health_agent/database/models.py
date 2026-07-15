@@ -76,6 +76,7 @@ class SourceDocument(Base, TimestampMixin):
     imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     data_origin: Mapped[str] = mapped_column(String(128), default="user_document")
+    institution: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     contains_identity: Mapped[bool] = mapped_column(Boolean, default=False)
     human_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)

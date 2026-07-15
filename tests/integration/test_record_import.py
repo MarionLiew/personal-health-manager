@@ -17,7 +17,10 @@ runner = CliRunner()
 
 def fictional_report() -> Path:
     path = ROOT / "data/imports" / f"fictional-{uuid.uuid4()}.txt"
-    path.write_text("虚构报告：2026-01-01 胸部CT。仅用于测试。", encoding="utf-8")
+    path.write_text(
+        "虚构市第一医院\n虚构报告：2026-01-01 胸部CT。仅用于测试。",
+        encoding="utf-8",
+    )
     return path
 
 
@@ -34,6 +37,15 @@ def test_dry_run_does_not_write_formal_record_and_confirm_is_idempotent(isolated
         assert first.exit_code == 0, first.output
         first_payload = json.loads(first.output)
         assert first_payload["data"]["duplicate"] is False
+
+        listed = runner.invoke(
+            app,
+            ["record", "list", "--institution", "虚构市第一医院", "--json"],
+        )
+        assert listed.exit_code == 0, listed.output
+        listed_records = json.loads(listed.output)["data"]["records"]
+        assert len(listed_records) == 1
+        assert listed_records[0]["institution"] == "虚构市第一医院"
 
         second = runner.invoke(app, ["record", "import", str(path), "--confirm", "--json"])
         assert second.exit_code == 0, second.output

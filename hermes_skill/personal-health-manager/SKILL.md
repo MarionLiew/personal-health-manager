@@ -32,6 +32,8 @@ results or work around the CLI.
 2. Invoke a read-only JSON command. For every write, including symptom/treatment additions, report
    imports and lesion changes, invoke `--dry-run --json` first. Summarize candidates, uncertainties,
    duplicate status and sources.
+   When present, show `institution` as an unverified source field. A missing or incorrect hospital
+   name must be corrected before confirmation, especially when it came from OCR.
 3. Ask for explicit confirmation. Invoke the same operation with `--confirm --json` only after an
    affirmative response that refers to that preview. Never auto-confirm.
 4. Preserve the CLI's evidence types, uncertainty, warnings, action level and record IDs. Never turn
@@ -58,8 +60,8 @@ Allow the user to confirm or reject a subset. Never auto-confirm a low-confidenc
 laterality, pathology status or Dose Screen value. Keep Total DLP separate from event DLP.
 
 If a source is already saved but its candidates were parsed incorrectly, use
-`health.sh record reparse SOURCE_DOCUMENT_ID --dry-run --json`. Show candidate types, measurements,
-uncertainties, pending IDs that would be superseded and protected decisions. Run the same command
+`health.sh record reparse SOURCE_DOCUMENT_ID --dry-run --json`. Show institution, candidate types,
+measurements, uncertainties, pending IDs that would be superseded and protected decisions. Run the same command
 with `--confirm --json` only after explicit approval of that preview. Reparse does not confirm the
 new candidates; do not bypass the subsequent partial candidate-confirmation step.
 

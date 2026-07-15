@@ -28,7 +28,7 @@ from health_agent.database.models import (
 from health_agent.database.session import build_engine
 from health_agent.errors import ConfirmationRequired
 
-LATEST_SCHEMA_VERSION = 4
+LATEST_SCHEMA_VERSION = 5
 SCHEMA_VERSION = LATEST_SCHEMA_VERSION
 
 
@@ -210,11 +210,24 @@ def _migration_4(connection: Connection) -> None:
         table.create(connection, checkfirst=True)
 
 
+def _migration_5(connection: Connection) -> None:
+    _add_columns(
+        connection,
+        "source_documents",
+        {"institution": "VARCHAR(255)"},
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_source_documents_institution "
+        "ON source_documents(institution)"
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "initial_schema", _migration_1),
     Migration(2, "record_candidates", _migration_2),
     Migration(3, "daily_medical_management", _migration_3),
     Migration(4, "personal_health_profile", _migration_4),
+    Migration(5, "source_document_institution", _migration_5),
 )
 
 

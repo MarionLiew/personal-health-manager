@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.6 - 2026-07-15
+
+- Add schema migration 5 with an indexed, nullable institution field on every source document.
+- Preserve the parsed institution in pending candidates and confirmed record details so the source
+  organization remains available after partial human confirmation.
+- Return institution from record list/show/reparse responses and support exact institution filtering
+  in `health record list`.
+- Keep hospital names unverified until candidate review; OCR-derived names retain the OCR safety gate.
+
 ## 0.5.5 - 2026-07-15
 
 - Parse two-dimensional representative measurements for multiple bilateral or regional lymph nodes

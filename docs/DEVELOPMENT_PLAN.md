@@ -2,7 +2,7 @@
 
 Status date: 2026-07-15.
 
-Current release: `0.5.5`; current schema: `4`.
+Current release: `0.5.6`; current schema: `5`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -47,6 +47,9 @@ between submitted tissue-fragment size and lesion size.
 
 Parser version 6 in release 0.5.5 adds representative two-axis measurements for multiple lymph
 nodes and an opt-in, local-only scanned-PDF OCR path with capped candidate confidence.
+
+Parser version 7 in release 0.5.6 carries the parsed institution into each candidate. Schema
+migration 5 adds the indexed source-document institution used by record listing and provenance.
 
 No unfinished feature is represented as production-ready. The implementation order prioritizes
 provenance, confirmation, audit, and safety before medical parsing or analysis.

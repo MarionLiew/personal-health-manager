@@ -33,3 +33,7 @@ Version 4 adds `PersonalCondition`, `ScarLesion`, `HPVLesion`, `TreatmentEvent`,
 `ImmuneContext`, `HealthTimelineEvent` and `RiskFactorProfile`. These are verified medical-management
 facts with the same provenance and audit columns as existing records. Images are content-addressed
 local files; the database stores their hash and repository-controlled data path, never image bytes.
+
+Version 5 adds nullable, indexed `source_documents.institution`. The parser copies this value into
+each candidate, where it remains `system_inference` until human review, and confirmed formal-record
+details retain the same institution for provenance and cross-hospital reporting.

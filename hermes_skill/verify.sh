@@ -39,6 +39,7 @@ grep -q 'UNSAFE_PATH' "$SKILL/references/wechat-examples.md"
 grep -q 'does not count as a retry' "$SKILL/SKILL.md"
 grep -q 'record reparse SOURCE_DOCUMENT_ID --dry-run' "$SKILL/SKILL.md"
 grep -q 'record reparse SOURCE_DOCUMENT_ID --ocr --dry-run' "$SKILL/SKILL.md"
+grep -q 'show `institution` as an unverified source field' "$SKILL/SKILL.md"
 grep -q 'config/hermes.yaml' "$WRAPPER"
 grep -q '/Users/marionliew/.hermes/cache/documents' "$PROJECT_DIR/config/hermes.yaml"
 

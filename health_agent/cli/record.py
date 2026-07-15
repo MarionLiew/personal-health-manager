@@ -34,7 +34,7 @@ from health_agent.safety.privacy import require_allowed_import_path
 
 app = typer.Typer(no_args_is_help=True)
 
-PARSER_VERSION = "6"
+PARSER_VERSION = "7"
 
 
 def _add_candidate(
@@ -165,8 +165,10 @@ def import_record(
                 human_confirmed=True,
                 parser_name=preview.parser,
                 parser_version=PARSER_VERSION,
+                institution=preview.candidates.get("institution"),
             )
             source.revoked = False
+            source.institution = preview.candidates.get("institution")
             session.add(source)
             session.flush()
             import_session = ImportSession(
@@ -205,12 +207,16 @@ def import_record(
 
 
 @app.command("list")
-def list_records(json_output: bool = typer.Option(False, "--json")) -> None:
+def list_records(
+    institution: str | None = typer.Option(None, "--institution"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
     migrate()
     with session_scope() as session:
-        records = session.scalars(
-            select(SourceDocument).where(SourceDocument.revoked.is_(False))
-        ).all()
+        statement = select(SourceDocument).where(SourceDocument.revoked.is_(False))
+        if institution:
+            statement = statement.where(SourceDocument.institution == institution)
+        records = session.scalars(statement).all()
         data = {
             "records": [
                 {
@@ -218,6 +224,7 @@ def list_records(json_output: bool = typer.Option(False, "--json")) -> None:
                     "filename": item.original_filename,
                     "sha256": item.sha256,
                     "imported_at": item.imported_at.isoformat(),
+                    "institution": item.institution,
                 }
                 for item in records
             ]
@@ -240,6 +247,7 @@ def show_record(record_id: str, json_output: bool = typer.Option(False, "--json"
             "file_size": item.file_size,
             "revoked": item.revoked,
             "parser": item.parser_name,
+            "institution": item.institution,
         }
     emit("record.show", data, json_output=json_output)
 
@@ -306,6 +314,7 @@ def reparse_record(
                     "classification_confidence"
                 ),
                 "dates": preview.candidates.get("dates", {}),
+                "institution": preview.candidates.get("institution"),
                 "candidates": items,
                 "pending_candidate_ids_to_supersede": pending_to_supersede,
                 "protected_candidate_ids": protected,
@@ -363,6 +372,7 @@ def reparse_record(
 
             source.parser_name = preview.parser
             source.parser_version = PARSER_VERSION
+            source.institution = preview.candidates.get("institution")
             import_session.preview = {
                 "sha256": preview.sha256,
                 "filename": source.original_filename,
@@ -466,7 +476,11 @@ def _formalize_candidate(
                 **{
                     **common,
                     "original_text": None,
-                    "details": {"report_type": "laboratory", "import_id": import_session.id},
+                    "details": {
+                        "report_type": "laboratory",
+                        "import_id": import_session.id,
+                        "institution": candidate.payload.get("institution"),
+                    },
                 }
             )
             session.add(report)

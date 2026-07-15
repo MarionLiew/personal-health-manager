@@ -836,6 +836,7 @@ def parse_medical_report(text: str, document_hash: str) -> ParsedReport:
     else:
         examination_date = dates["examination_date"] or dates["report_date"] or fallback_date
     institution_match = re.search(r"^\s*([^\n]{2,40}(?:医院|医学中心|检验所))", text, re.MULTILINE)
+    institution = institution_match.group(1).strip() if institution_match else None
     title = next((line.strip() for line in text.splitlines() if line.strip()), None)
     candidates = _lab_candidates(text, document_hash, examination_date, dates)
     candidates.extend(
@@ -851,6 +852,8 @@ def parse_medical_report(text: str, document_hash: str) -> ParsedReport:
     )
     candidates.extend(_clinical_opinion_candidate(text, document_hash))
     candidates.extend(_followup_candidates(text, document_hash, examination_date))
+    for candidate in candidates:
+        candidate["payload"]["institution"] = institution
     recognized_lines = {
         item["original_text"] for item in candidates if "\n" not in item["original_text"]
     }
@@ -871,7 +874,7 @@ def parse_medical_report(text: str, document_hash: str) -> ParsedReport:
         classification_confidence=confidence,
         examination_date=examination_date,
         dates=dates,
-        institution=institution_match.group(1).strip() if institution_match else None,
+        institution=institution,
         body_region=next(
             (part for part in ("胸部", "颈部", "腹部", "头颅", "甲状腺") if part in text),
             None,

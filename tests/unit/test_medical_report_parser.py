@@ -9,6 +9,7 @@ def test_chinese_lab_report_extracts_provenance_and_ranges() -> None:
     assert parsed.examination_date == "2026-01-10"
     assert parsed.institution == "虚构市第一医院"
     wbc = next(item for item in parsed.candidates if item["payload"]["item_name"] == "白细胞")
+    assert wbc["payload"]["institution"] == "虚构市第一医院"
     assert wbc["payload"]["value"] == 3.6
     assert wbc["payload"]["reference_low"] == 3.9
     assert wbc["payload"]["abnormal_flag"] == "low"
@@ -67,6 +68,7 @@ def test_bilateral_nodes_with_two_dimensions_are_a_representative_aggregate() ->
     imaging = next(
         item for item in parsed.candidates if item["candidate_type"] == "imaging_report"
     )
+    assert imaging["payload"]["institution"] == "虚构医院"
     assert imaging["payload"]["aggregate_measurements"] == [
         {
             "structure": "颈部淋巴结",
