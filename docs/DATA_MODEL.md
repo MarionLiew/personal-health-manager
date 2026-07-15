@@ -24,6 +24,8 @@ the managed source path and SHA-256 before creating replacement candidates. Conf
 obsolete `pending` candidates as `superseded`; `confirmed` and `rejected` candidates and their formal
 records are never rewritten. The operation records a `record.reparse` audit event and parser version.
 Parser version 4 adds only candidate payload fields and therefore keeps schema version 4 unchanged.
+Parser version 5 adds pathology candidate detail fields for qualified immunohistochemistry,
+recommendation lists and submitted-fragment measurements; it also requires no schema migration.
 
 Version 4 adds `PersonalCondition`, `ScarLesion`, `HPVLesion`, `TreatmentEvent`, `LesionImage`,
 `ImmuneContext`, `HealthTimelineEvent` and `RiskFactorProfile`. These are verified medical-management

@@ -77,8 +77,8 @@ def test_supplemental_pathology_does_not_create_imaging_or_lesion_candidate() ->
 报告日期：2026-04-12
 补充报告日期：2026-04-18
 右侧颈部淋巴结穿刺组织仅见少量淋巴组织。
-免疫组化：CD20部分阳性，CD3部分阳性，Ki-67约20%。
-结合形态考虑反应性增生，诊断肿瘤证据不足；因取材较少，必要时再次取材。
+免疫组化：CD20、CD3均（部分+），Ki-67（约20%+）。
+结合形态考虑反应性增生，诊断肿瘤证据不足；因取材较少，建议临床必要时再次取材。
 """
 
     parsed = parse_medical_report(text, "e" * 64)
@@ -101,8 +101,49 @@ def test_supplemental_pathology_does_not_create_imaging_or_lesion_candidate() ->
     assert payload["sample_adequacy"] == "limited"
     assert payload["malignancy_status"] == "insufficient_evidence"
     assert payload["immunohistochemistry"]["Ki-67"] == "20%"
+    assert payload["immunohistochemistry"]["CD20"] == "partial_positive"
+    assert payload["immunohistochemistry"]["CD3"] == "partial_positive"
+    assert payload["immunohistochemistry_details"]["Ki-67"] == {
+        "value_percent": 20.0,
+        "qualifier": "approximately",
+        "reported_positive": True,
+        "original_expression": "Ki-67（约20%+）",
+    }
     assert payload["specimen_date"] == "2026-04-11"
     assert payload["supplement_date"] == "2026-04-18"
+    assert "再次取材" in payload["recommendation"]
+    assert len(payload["recommendations"]) == 1
+
+
+def test_pathology_supplement_uses_last_report_date_and_preserves_fragment_boundary() -> None:
+    text = """虚构病理检查补充报告单
+收到日期：2026-05-01
+报告日期：2026-05-03
+（右侧颈部II区淋巴结）送检灰白碎组织一堆，直径0.6cm，全埋制片。
+极少量淋巴组织，建议加做免疫组化协助诊断。
+补充诊断意见：CD20、CD3均（部分+），Ki-67（约15%+）。
+诊断肿瘤证据不足，建议临床必要时再次取材送检。
+报告日期：2026-05-08
+"""
+
+    parsed = parse_medical_report(text, "5" * 64)
+    payload = parsed.candidates[0]["payload"]
+
+    assert parsed.dates["received_date"] == "2026-05-01"
+    assert parsed.dates["report_date"] == "2026-05-03"
+    assert parsed.dates["supplement_date"] == "2026-05-08"
+    assert payload["specimen_site_detail"] == "右侧颈部II区淋巴结"
+    assert payload["specimen_fragment_measurements"] == [
+        {
+            "size": 0.6,
+            "unit": "cm",
+            "measurement_target": "submitted_tissue_fragment",
+            "not_lesion_size": True,
+            "original_text": "送检灰白碎组织一堆，直径0.6cm",
+        }
+    ]
+    assert len(payload["recommendations"]) == 2
+    assert "再次取材" in payload["recommendation"]
 
 
 def test_layout_coagulation_report_extracts_six_results_and_dates() -> None:

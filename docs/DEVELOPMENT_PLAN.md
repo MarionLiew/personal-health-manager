@@ -2,7 +2,7 @@
 
 Status date: 2026-07-15.
 
-Current release: `0.5.3`; current schema: `4`.
+Current release: `0.5.4`; current schema: `4`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -39,6 +39,10 @@ Parser version 4 in release 0.5.3 preserves PDF layout for laboratory tables, su
 and expanded CBC fields, distinguishes diagnostic ENT endoscopy from blank pathology templates, and
 recognizes MR radiology reports with separate dates and report sections. Exact file duplicates are
 now reported during dry-run rather than only during confirmation.
+
+Parser version 5 in release 0.5.4 preserves partial immunohistochemistry positivity, approximate
+Ki-67 expressions, multiple pathology recommendations, supplement dates and the explicit boundary
+between submitted tissue-fragment size and lesion size.
 
 No unfinished feature is represented as production-ready. The implementation order prioritizes
 provenance, confirmation, audit, and safety before medical parsing or analysis.

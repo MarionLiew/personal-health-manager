@@ -34,7 +34,7 @@ from health_agent.safety.privacy import require_allowed_import_path
 
 app = typer.Typer(no_args_is_help=True)
 
-PARSER_VERSION = "4"
+PARSER_VERSION = "5"
 
 
 def _add_candidate(

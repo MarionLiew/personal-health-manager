@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.4 - 2026-07-15
+
+- Preserve pathology immunohistochemistry qualifiers: `部分+` is now
+  `partial_positive`, while Ki-67 retains approximate and reported-positive metadata.
+- Distinguish submitted tissue-fragment measurements from lesion measurements and mark them
+  explicitly as not being lesion size.
+- Preserve all pathology recommendations and prefer the supplemental recommendation for repeat
+  sampling instead of allowing an earlier immunohistochemistry recommendation to replace it.
+- Derive supplemental pathology dates from the final report date when a supplement contains
+  multiple report dates, and recognize pathology received dates.
+
 ## 0.5.3 - 2026-07-15
 
 - Preserve PDF table layout during text extraction so laboratory result, unit and reference columns

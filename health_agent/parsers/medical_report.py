@@ -142,28 +142,48 @@ def _date(text: str) -> str | None:
 
 
 def _labeled_date(text: str, labels: tuple[str, ...]) -> str | None:
+    values = _labeled_dates(text, labels)
+    return values[0] if values else None
+
+
+def _labeled_dates(text: str, labels: tuple[str, ...]) -> list[str]:
     label_pattern = "|".join(re.escape(label) for label in labels)
     date_pattern = r"(20\d{2})[年./-](\d{1,2})[月./-](\d{1,2})日?"
-    match = re.search(rf"(?:{label_pattern})[ \t]*[:：]?[ \t]*{date_pattern}", text)
-    if not match:
-        match = re.search(rf"{date_pattern}[ \t]*(?:{label_pattern})[ \t]*[:：]?", text)
-    if not match:
-        return None
-    try:
-        return datetime(int(match[1]), int(match[2]), int(match[3])).date().isoformat()
-    except ValueError:
-        return None
+    matches = list(
+        re.finditer(rf"(?:{label_pattern})[ \t]*[:：]?[ \t]*{date_pattern}", text)
+    )
+    matches.extend(
+        re.finditer(rf"{date_pattern}[ \t]*(?:{label_pattern})[ \t]*[:：]?", text)
+    )
+    values: list[str] = []
+    for match in sorted(matches, key=lambda item: item.start()):
+        try:
+            value = datetime(int(match[1]), int(match[2]), int(match[3])).date().isoformat()
+        except ValueError:
+            continue
+        if value not in values:
+            values.append(value)
+    return values
 
 
 def _date_contexts(text: str) -> dict[str, Any]:
+    report_dates = _labeled_dates(text, ("报告日期", "报告时间", "审核日期"))
+    explicit_supplement_date = _labeled_date(text, ("补充报告日期", "补充日期"))
+    supplement_date = explicit_supplement_date
+    if (
+        supplement_date is None
+        and len(report_dates) > 1
+        and any(marker in text for marker in ("补充报告", "补充诊断意见"))
+    ):
+        supplement_date = report_dates[-1]
     result: dict[str, Any] = {
         "examination_date": _labeled_date(text, ("检查日期", "检查时间")),
         "procedure_date": _labeled_date(text, ("操作日期", "手术日期", "治疗日期")),
         "specimen_date": _labeled_date(text, ("取材日期", "送检日期", "标本日期")),
         "collection_date": _labeled_date(text, ("采集日期", "采集时间")),
-        "received_date": _labeled_date(text, ("接收日期", "接收时间")),
-        "report_date": _labeled_date(text, ("报告日期", "报告时间", "审核日期")),
-        "supplement_date": _labeled_date(text, ("补充报告日期", "补充日期")),
+        "received_date": _labeled_date(text, ("接收日期", "接收时间", "收到日期")),
+        "report_date": report_dates[0] if report_dates else None,
+        "supplement_date": supplement_date,
     }
     all_dates = []
     for match in re.finditer(r"(20\d{2})[年./-](\d{1,2})[月./-](\d{1,2})日?", text):
@@ -557,13 +577,21 @@ def _pathology_candidate(
     site = next(
         (part for part in ("甲状腺", "肺", "淋巴结", "胃", "肠", "乳腺") if part in text), None
     )
-    ki67_match = re.search(r"Ki-?67[^\d]{0,8}(\d+(?:\.\d+)?)\s*%", text, re.I)
+    ki67_match = re.search(
+        r"Ki-?67(?P<prefix>[^\d]{0,12})(?P<value>\d+(?:\.\d+)?)"
+        r"\s*%?(?P<suffix>[^\s，。；)]{0,4})",
+        text,
+        re.I,
+    )
     def marker_result(marker: str) -> str | None:
         match = re.search(rf"{re.escape(marker)}(.{{0,16}})", text, re.I)
         if not match:
             return None
         result = match.group(1)
-        if any(term in result for term in ("部分阳性", "少数阳性", "少量阳性")):
+        if any(
+            term in result
+            for term in ("部分阳性", "少数阳性", "少量阳性", "部分+", "部分＋")
+        ):
             return "partial_positive"
         if "阳性" in result or "+" in result or "＋" in result:
             return "positive"
@@ -576,10 +604,40 @@ def _pathology_candidate(
         for key, value in {
             "CD20": marker_result("CD20"),
             "CD3": marker_result("CD3"),
-            "Ki-67": f"{ki67_match.group(1)}%" if ki67_match else None,
+            "Ki-67": f"{ki67_match.group('value')}%" if ki67_match else None,
         }.items()
         if value is not None
     }
+    ki67_details = None
+    if ki67_match:
+        ki67_details = {
+            "value_percent": float(ki67_match.group("value")),
+            "qualifier": (
+                "approximately"
+                if "约" in ki67_match.group("prefix")
+                else "exact_not_stated"
+            ),
+            "reported_positive": any(
+                mark in ki67_match.group(0) for mark in ("+", "＋", "阳性")
+            ),
+            "original_expression": ki67_match.group(0),
+        }
+    normalized_text = re.sub(r"\s+", "", text)
+    recommendations = [
+        match.group(0).rstrip("。；")
+        for match in re.finditer(r"[^。；]*建议[^。；]*", normalized_text)
+        if match.group(0)
+    ]
+    primary_recommendation = next(
+        (item for item in reversed(recommendations) if "再次取材" in item),
+        recommendations[-1] if recommendations else None,
+    )
+    site_detail_match = re.search(r"[（(](?P<site>[左右]侧颈部[ⅠⅡⅢⅣⅤⅥIVX]+区淋巴结)[）)]", text)
+    fragment_match = re.search(
+        r"(?P<text>送检[^。；\n]{0,30}?(?:碎组织|组织)[^。；\n]{0,20}?直径\s*(?P<size>\d+(?:\.\d+)?)\s*(?P<unit>mm|cm))",
+        text,
+        re.IGNORECASE,
+    )
     payload = {
         "examination_date": examination_date,
         "specimen_date": dates.get("specimen_date"),
@@ -589,6 +647,7 @@ def _pathology_candidate(
             (word for word in ("活检", "切除标本", "穿刺") if word in text), None
         ),
         "specimen_site": site,
+        "specimen_site_detail": site_detail_match.group("site") if site_detail_match else None,
         "laterality": "左" if "左侧" in text else "右" if "右侧" in text else None,
         "procedure_type": next((word for word in ("穿刺", "活检", "切除") if word in text), None),
         "pathology_description": text,
@@ -598,9 +657,22 @@ def _pathology_candidate(
         "margin_status": None,
         "sample_adequacy": "limited" if limited_sample else "not_stated",
         "immunohistochemistry": immunohistochemistry,
+        "immunohistochemistry_details": {"Ki-67": ki67_details} if ki67_details else {},
         "molecular_findings": None,
-        "recommendation": next(
-            (line.strip() for line in text.splitlines() if "建议" in line), None
+        "recommendation": primary_recommendation,
+        "recommendations": recommendations,
+        "specimen_fragment_measurements": (
+            [
+                {
+                    "size": float(fragment_match.group("size")),
+                    "unit": fragment_match.group("unit").lower(),
+                    "measurement_target": "submitted_tissue_fragment",
+                    "not_lesion_size": True,
+                    "original_text": fragment_match.group("text"),
+                }
+            ]
+            if fragment_match
+            else []
         ),
     }
     return [
