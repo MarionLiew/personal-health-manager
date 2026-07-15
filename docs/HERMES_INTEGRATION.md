@@ -125,6 +125,12 @@ Hermes must never add `--confirm` itself. This applies to symptoms, treatments, 
 lesion changes, correction, undo, and restore. Low-confidence dates, numbers, units, laterality,
 pathology status, or Dose Screen values remain unconfirmed until the user selects them.
 
+GPT analysis export is also gated. Hermes first runs
+`export gpt-bundle --output NAME.json --dry-run --json`, shows record counts, privacy exclusions and
+whether pending candidates would be included, then waits for confirmation. The CLI creates a local
+file only; Hermes must never upload, attach or transmit it automatically. See
+[GPT export](GPT_EXPORT.md).
+
 ### Medical PDF attachments
 
 Sending one or more medical PDFs without explanatory text is an import intent by default. Hermes

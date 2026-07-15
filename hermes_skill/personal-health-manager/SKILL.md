@@ -1,6 +1,6 @@
 ---
 name: personal-health-manager
-description: Personal health-record assistant for WeChat. Use whenever the user sends one or more health-related PDFs, reports, images, DICOM files, or other medical attachments, even without an accompanying instruction; and for health profiles, timelines, imaging or radiation history, laboratory trends, lesion comparison, symptoms, follow-ups, visit preparation, or safe health-record writes. All access must go through the local health CLI wrapper.
+description: Personal health-record assistant for WeChat. Use whenever the user sends one or more health-related PDFs, reports, images, DICOM files, or other medical attachments, even without an accompanying instruction; and for health profiles, timelines, imaging or radiation history, laboratory trends, lesion comparison, symptoms, follow-ups, visit preparation, local GPT analysis exports, or safe health-record writes. All access must go through the local health CLI wrapper.
 metadata:
   hermes:
     tags: [health, medical-records, wechat, local-first]
@@ -73,6 +73,13 @@ local, cap-derived candidates remain low-confidence, and require the user to ver
 number, decimal point, unit, laterality, location and sign. Never confirm an OCR candidate merely
 because the overall OCR confidence is high.
 
+For “导出给GPT分析”, first run
+`health.sh export gpt-bundle --output NAME.json --dry-run --json`. Explain that the command creates
+only a local redacted file and performs no upload. Pending candidates are excluded by default; add
+`--include-pending` only when the user explicitly asks to export unconfirmed parser results, and
+state that they remain separate `system_inference` values. Run `--confirm` only after approval of
+the exact scope. Never upload, attach or transmit the resulting file automatically.
+
 Read [references/command-map.md](references/command-map.md) when selecting a command. Do not infer a
 command from memory if it is absent there; check `health --help` and the relevant group help.
 Read [references/wechat-examples.md](references/wechat-examples.md) for mutation and partial-
@@ -82,6 +89,7 @@ Exact common routes:
 
 - “查看我的健康概览” → `health.sh profile summary --json`
 - “整理我的耳鼻喉复诊资料” → `health.sh visit-summary --department 耳鼻喉科 --json`
+- “导出给GPT分析” → `health.sh export gpt-bundle --output NAME.json --dry-run --json`
 
 For long-term profile requests, use only `health profile ...`. Describe known problems, changes,
 treatments, current state, factors worth improving, changes to observe and next management actions.

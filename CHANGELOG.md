@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0 - 2026-07-15
+
+- Add a local `health export gpt-bundle` JSON export with dry-run/confirmation gating, restrictive
+  output paths, no-overwrite behavior, file permissions and audit hashing.
+- Export confirmed structured facts with evidence source types, source references, institutions,
+  medical boundaries and action-level instructions while excluding raw PDFs, images, original report
+  text, filenames, local paths, hashes and DICOM/HealthKit identifiers.
+- Add best-effort direct-identifier redaction and an option to omit institutions.
+- Keep pending candidates excluded by default; `--include-pending` places them only in a separately
+  labelled `unconfirmed_data` section as `system_inference`, never among confirmed facts.
+- Never upload automatically: the command creates a local file for the user to inspect and share
+  deliberately with an external GPT service.
+
 ## 0.5.6 - 2026-07-15
 
 - Add schema migration 5 with an indexed, nullable institution field on every source document.

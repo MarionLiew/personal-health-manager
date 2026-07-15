@@ -2,7 +2,7 @@
 
 Status date: 2026-07-15.
 
-Current release: `0.5.6`; current schema: `5`.
+Current release: `0.6.0`; current schema: `5`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -50,6 +50,10 @@ nodes and an opt-in, local-only scanned-PDF OCR path with capped candidate confi
 
 Parser version 7 in release 0.5.6 carries the parsed institution into each candidate. Schema
 migration 5 adds the indexed source-document institution used by record listing and provenance.
+
+Release 0.6.0 adds a local, redacted GPT analysis bundle. It does not call an external API or upload
+data. Pending candidates remain excluded unless explicitly requested and are always separated from
+confirmed facts.
 
 No unfinished feature is represented as production-ready. The implementation order prioritizes
 provenance, confirmation, audit, and safety before medical parsing or analysis.

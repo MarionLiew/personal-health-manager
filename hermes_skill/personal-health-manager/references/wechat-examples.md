@@ -100,3 +100,15 @@ User: “给我看看长期健康重点。”
 Call `health profile priorities --json` or `health profile summary --json`. Present the returned
 known problem, current status and next attention in priority order. Never invent a total health,
 immune or inflammation score.
+
+## Local GPT analysis export
+
+User: “把我的资料导出给GPT分析。”
+
+1. Run `health export gpt-bundle --output health-analysis.json --dry-run --json`.
+2. Show confirmed-record counts, source count, pending-candidate count, whether institutions are
+   included, and the exclusions for raw documents, original text and images.
+3. Explain that no upload occurs and that the resulting health JSON remains sensitive.
+4. Ask whether to create the local file. Only after approval repeat with `--confirm --json`.
+5. Never attach or transmit the result automatically. Add `--include-pending` only if the user asks
+   to include unconfirmed candidates, and keep their `system_inference` label explicit.

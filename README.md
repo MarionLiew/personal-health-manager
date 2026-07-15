@@ -6,7 +6,8 @@ Hermes 只能调用 CLI，不能执行 SQL。
 
 ## 当前版本
 
-版本 `0.5.6` 增加结构化医院来源字段；扫描PDF支持显式本地Vision OCR预览，双侧/多个淋巴结保留二维代表测量，
+版本 `0.6.0` 增加供GPT分析的本地脱敏JSON导出，并明确禁止自动上传；同时保留结构化医院来源字段、
+扫描PDF的显式本地Vision OCR预览，以及双侧/多个淋巴结二维代表测量，
 OCR默认关闭且所有字段必须人工确认；同时继承0.5.4对病理免疫组化“部分+”、Ki-67约数、补充报告日期、全部建议及
 送检碎组织尺寸边界；同时继承0.5.3的PDF布局保留解析、凝血与扩展血常规、喉镜/鼻内镜
 和MR报告支持，修复
@@ -55,6 +56,24 @@ RDSR 可在确认后作为设备记录入账；Dose Screen 必须按候选 ID �
 扫描PDF默认不执行OCR。用户明确同意后，可用
 `health record reparse SOURCE_ID --ocr --dry-run --json` 进行完全本地的OCR预览。OCR候选
 置信度被限制为低置信度，日期、数字、小数点、单位、左右侧、位置及阴阳性必须逐项核对。
+
+## 导出给 GPT 分析
+
+先预览范围，不会创建文件或上传数据：
+
+```bash
+health export gpt-bundle --output my-health.json --dry-run --json
+```
+
+确认后只在 `data/exports` 创建本地JSON：
+
+```bash
+health export gpt-bundle --output my-health.json --confirm --json
+```
+
+待确认解析候选默认排除。如确实要让GPT辅助核对，可显式增加 `--include-pending`；这些内容
+只进入 `unconfirmed_data`，不会成为正式事实。生成后先在本地检查，再自行决定是否上传。
+详见 [GPT导出说明](docs/GPT_EXPORT.md)。
 
 常用日常管理命令：
 

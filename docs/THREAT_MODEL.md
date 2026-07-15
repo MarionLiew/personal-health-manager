@@ -10,6 +10,13 @@ Controls include deny-by-default import roots, content hashes, immutable origina
 archive count/size/ratio limits, no symlink extraction, response validation, and integrity-checked
 backups. Logs may contain operation, opaque IDs, result/error, parser version, and hash prefix only.
 
+GPT export introduces an explicit exfiltration boundary. The CLI writes only beneath `data/exports`,
+never overwrites, uses mode 0600, excludes raw files and direct identifier fields, applies a
+best-effort redaction pass, and records only a hash prefix plus safe counts in the audit log. It does
+not call a network API. External sharing remains a separate user action. Residual re-identification
+risk remains because dates, rare conditions and institution combinations can identify a person;
+users must inspect the bundle and may omit institutions before sharing.
+
 Hermes uses a separate deployment config that permits only its detected `cache/documents` directory,
 not `~/.hermes` or the user home. The loader rejects external roots that are the home directory or
 one of its ancestors. Files still pass the same hash, parser, preview and confirmation gates.

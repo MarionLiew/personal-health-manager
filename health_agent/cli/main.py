@@ -202,6 +202,7 @@ from health_agent.cli import (  # noqa: E402
     backup,
     db,
     dicom,
+    export,
     followup,
     imaging,
     labs,
@@ -224,6 +225,7 @@ app.add_typer(followup.app, name="followup")
 app.add_typer(imaging.app, name="imaging")
 app.add_typer(appointments.app, name="appointments")
 app.add_typer(profile.app, name="profile")
+app.add_typer(export.app, name="export")
 
 
 @app.command("visit-summary")

@@ -37,3 +37,8 @@ local files; the database stores their hash and repository-controlled data path,
 Version 5 adds nullable, indexed `source_documents.institution`. The parser copies this value into
 each candidate, where it remains `system_inference` until human review, and confirmed formal-record
 details retain the same institution for provenance and cross-hospital reporting.
+
+The GPT analysis bundle is a versioned export document, not a database entity. It contains
+pseudonymous source references and confirmed structured data. Optional pending candidates are stored
+under `unconfirmed_data` with `status=pending` and `source_type=system_inference`; they are never
+merged into `confirmed_data`.

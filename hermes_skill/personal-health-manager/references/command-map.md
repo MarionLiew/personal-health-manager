@@ -40,6 +40,8 @@ confirmation for mutations.
   `health doctor-questions --department DEPARTMENT`
 - Backup: `health backup create`, `health backup list`, `health backup verify FILE`,
   `health backup restore FILE`
+- Local GPT export: `health export gpt-bundle --output FILE.json`; add `--include-pending` only after
+  the user explicitly requests separately labelled unconfirmed parser candidates.
 
 Commands in the product plan for Apple Health, lifestyle, assessment and other future features must
 be used only after `health <group> --help` confirms they exist. Never emulate a missing command with
@@ -64,6 +66,9 @@ Mutation gate examples:
 - For a scanned PDF only after explicit OCR approval, add `--ocr` to the import or reparse dry-run.
   Show all OCR uncertainties and require field-by-field review. Do not use external OCR, generic
   vision tools, or `--confirm` until the user has approved that exact preview.
+- GPT export always starts with `export gpt-bundle --output FILE.json --dry-run --json`. It creates a
+  local file only after confirmation. Never upload or attach it automatically, and never describe
+  pending candidates as confirmed facts.
 
 For a WeChat file, use only the exact local cache path supplied by Hermes and accepted by CLI path
 validation. A rejected path must be copied/approved through deployment configuration by the operator;

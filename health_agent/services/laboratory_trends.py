@@ -58,6 +58,7 @@ def lab_rows(session: Session, item_name: str | None = None) -> list[dict[str, A
                 "conversion_method": method,
                 "report_id": details.get("laboratory_report_id"),
                 "source_document_id": result.source_document_id,
+                "source_type": result.source_type,
             }
         )
     return sorted(rows, key=lambda row: (row["date"] or "", row["id"]))
