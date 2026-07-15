@@ -6,8 +6,9 @@ Hermes 只能调用 CLI，不能执行 SQL。
 
 ## 当前版本
 
-版本 `0.5.1` 已完成 Hermes v0.16/微信集成、医疗附件自动 dry-run 路由、精确缓存目录白名单、
-CLI-only Skill 包装和只读影像列表，并保留
+版本 `0.5.2` 修复颈部超声、穿刺操作和病理补充报告的分类与测量解析，并为已保存来源增加
+经过 dry-run/confirm 门控的安全重解析；同时保留 Hermes v0.16/微信集成、精确缓存目录白名单、
+CLI-only Skill 包装和只读影像列表，以及
 数据库迁移 4 和 Personal Health Profile 长期管理层，以及 0.3.0 的
 症状时间轴、复查/复诊和预约管理、科室相关就诊摘要、
 病理与医生意见候选、Dose Screen 局部确认、普通 DICOM 剂量字段回退、扩充化验映射和
@@ -41,6 +42,10 @@ uv run ruff check .
 查看并通过 `record confirm-candidates` 局部确认。DICOM 剂量也必须先 dry-run；只有结构化
 RDSR 可在确认后作为设备记录入账；Dose Screen 必须按候选 ID 局部确认，Total DLP 不与
 事件 DLP 重复累计。普通 DICOM 缺失 DLP 时保持为空，不从切片数推算有效剂量。
+
+已保存但尚未确认候选的报告可运行 `health record reparse SOURCE_ID --dry-run --json` 预览
+新解析结果，人工确认后再将同一命令改为 `--confirm`。重解析只会替换尚未确认的旧候选，
+不会改变已确认或已拒绝的医疗事实。
 
 常用日常管理命令：
 

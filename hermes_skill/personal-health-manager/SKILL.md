@@ -57,6 +57,12 @@ For candidate confirmation, show candidate ID, source text, field value, confide
 Allow the user to confirm or reject a subset. Never auto-confirm a low-confidence number, date,
 laterality, pathology status or Dose Screen value. Keep Total DLP separate from event DLP.
 
+If a source is already saved but its candidates were parsed incorrectly, use
+`health.sh record reparse SOURCE_DOCUMENT_ID --dry-run --json`. Show candidate types, measurements,
+uncertainties, pending IDs that would be superseded and protected decisions. Run the same command
+with `--confirm --json` only after explicit approval of that preview. Reparse does not confirm the
+new candidates; do not bypass the subsequent partial candidate-confirmation step.
+
 Read [references/command-map.md](references/command-map.md) when selecting a command. Do not infer a
 command from memory if it is absent there; check `health --help` and the relevant group help.
 Read [references/wechat-examples.md](references/wechat-examples.md) for mutation and partial-

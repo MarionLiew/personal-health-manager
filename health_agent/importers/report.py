@@ -38,6 +38,7 @@ def preview_report(path: Path, max_bytes: int) -> ImportPreview:
             "report_type": structured.report_type,
             "classification_confidence": structured.classification_confidence,
             "examination_date": structured.examination_date,
+            "dates": structured.dates,
             "institution": structured.institution,
             "body_region": structured.body_region,
             "title": structured.title,

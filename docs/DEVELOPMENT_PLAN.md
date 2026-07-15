@@ -1,8 +1,8 @@
 # Development plan and actual status
 
-Status date: 2026-07-14.
+Status date: 2026-07-15.
 
-Current release: `0.5.1`; current schema: `4`.
+Current release: `0.5.2`; current schema: `4`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -29,6 +29,11 @@ The Personal Health Profile phase is complete for single-user controlled use: lo
 scar/skin lesion history, treatment events, image timelines, infection context, risk factors and
 management priorities are implemented. Automated photo interpretation, disease diagnosis and risk
 probability models remain explicitly out of scope.
+
+Report parser maintenance in 0.5.2 distinguishes ultrasound-guided biopsy procedures and pathology
+supplements from imaging reports, preserves aggregate lymph-node measurement ranges without turning
+them into individual lesions, and supports audited reparse of saved sources. Reparse supersedes only
+pending candidates; confirmed and rejected decisions remain immutable.
 
 No unfinished feature is represented as production-ready. The implementation order prioritizes
 provenance, confirmation, audit, and safety before medical parsing or analysis.

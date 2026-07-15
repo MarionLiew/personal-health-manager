@@ -21,6 +21,12 @@ If the user says “重新导入刚才的文件” after a failed attempt, execu
 attachment path still present in the conversation. Do not call only `--help`, and do not reuse the
 earlier error table. Build the new table exclusively from the new CLI JSON responses.
 
+If the file is already saved and the user asks to fix an incorrect preview, do not import the cache
+copy again. Run `health record reparse SOURCE_DOCUMENT_ID --dry-run --json`, show the replacement
+candidates and IDs that would be superseded, and ask for confirmation. After explicit approval run
+the same command with `--confirm --json`; state clearly that the new candidates are still unconfirmed
+medical facts until the user selects candidate IDs.
+
 ## Read-only routing
 
 User: “查看我的健康概览”

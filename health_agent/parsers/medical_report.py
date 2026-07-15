@@ -67,6 +67,7 @@ class ParsedReport:
     report_type: str
     classification_confidence: float
     examination_date: str | None
+    dates: dict[str, Any]
     institution: str | None
     body_region: str | None
     title: str | None
@@ -90,8 +91,62 @@ def _date(text: str) -> str | None:
         return None
 
 
+def _labeled_date(text: str, labels: tuple[str, ...]) -> str | None:
+    label_pattern = "|".join(re.escape(label) for label in labels)
+    match = re.search(
+        rf"(?:{label_pattern})\s*[:：]?\s*(20\d{{2}})[年./-](\d{{1,2}})[月./-](\d{{1,2}})日?",
+        text,
+    )
+    if not match:
+        return None
+    try:
+        return datetime(int(match[1]), int(match[2]), int(match[3])).date().isoformat()
+    except ValueError:
+        return None
+
+
+def _date_contexts(text: str) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "examination_date": _labeled_date(text, ("检查日期", "检查时间")),
+        "procedure_date": _labeled_date(text, ("操作日期", "手术日期", "治疗日期")),
+        "specimen_date": _labeled_date(text, ("取材日期", "送检日期", "标本日期")),
+        "report_date": _labeled_date(text, ("报告日期", "报告时间", "审核日期")),
+        "supplement_date": _labeled_date(text, ("补充报告日期", "补充日期")),
+    }
+    all_dates = []
+    for match in re.finditer(r"(20\d{2})[年./-](\d{1,2})[月./-](\d{1,2})日?", text):
+        try:
+            value = datetime(int(match[1]), int(match[2]), int(match[3])).date().isoformat()
+        except ValueError:
+            continue
+        if value not in all_dates:
+            all_dates.append(value)
+    assigned = {value for value in result.values() if isinstance(value, str)}
+    result["all_dates"] = all_dates
+    result["unassigned_dates"] = [value for value in all_dates if value not in assigned]
+    return result
+
+
 def _classify(text: str) -> tuple[str, float]:
     upper = text.upper()
+    if re.search(r"(?:粗针|空芯针|穿刺).{0,8}(?:活检|取材)", text) and any(
+        marker in text for marker in ("进针", "取组织", "取得组织", "针")
+    ):
+        return "procedure", 0.96
+    pathology_markers = sum(
+        marker in upper
+        for marker in (
+            "病理报告",
+            "病理诊断",
+            "病理补充报告",
+            "免疫组化",
+            "CD20",
+            "CD3",
+            "KI-67",
+        )
+    )
+    if pathology_markers >= 2 or "病理报告" in text or "病理诊断" in text:
+        return "pathology", min(0.98, 0.82 + pathology_markers * 0.03)
     for kind, words in REPORT_RULES:
         hits = sum(1 for word in words if word.upper() in upper)
         if hits:
@@ -160,12 +215,60 @@ def _imaging_candidates(
     if modality is None:
         return []
     findings_match = re.search(
-        r"(?:检查所见|影像所见|所见)[:：]?\s*(.*?)(?=(?:诊断提示|诊断意见|印象|结论)[:：]|$)",
+        r"(?:检查所见|影像所见|超声所见|检查结果|所见)[:：]?\s*(.*?)"
+        r"(?=(?:诊断提示|超声提示|检查提示|诊断意见|印象|结论)[:：]|$)",
         text,
         re.DOTALL,
     )
-    impression_match = re.search(r"(?:诊断提示|诊断意见|印象|结论)[:：]?\s*(.*)", text, re.DOTALL)
+    impression_match = re.search(
+        r"(?:诊断提示|超声提示|检查提示|诊断意见|印象|结论)[:：]?\s*(.*)",
+        text,
+        re.DOTALL,
+    )
     body = next((part for part in ("胸部", "颈部", "腹部", "头颅", "肺") if part in text), None)
+    relevant_sentences = [
+        sentence.strip()
+        for sentence in re.split(r"[。；;\n]+", text)
+        if sentence.strip()
+        and any(
+            structure in sentence
+            for structure in ("淋巴结", "甲状腺", "腮腺", "喉返神经", "肺", "结节")
+        )
+    ]
+    findings_text = findings_match.group(1).strip() if findings_match else None
+    if not findings_text and relevant_sentences:
+        findings_text = "；".join(relevant_sentences)
+    impression_text = impression_match.group(1).strip() if impression_match else None
+    if not impression_text:
+        impression_sentences = [
+            sentence
+            for sentence in relevant_sentences
+            if any(marker in sentence for marker in ("考虑", "提示", "未见异常", "建议"))
+        ]
+        impression_text = "；".join(impression_sentences) or None
+
+    aggregate_measurements: list[dict[str, Any]] = []
+    lymph_range_pattern = re.compile(
+        r"(?:双侧|两侧)?颈部[^。；\n]{0,30}?(?:多个|多发)?淋巴结[^。；\n]{0,20}?"
+        r"(?:直径|大小|长径)?\s*(?:约)?(?P<minimum>\d+(?:\.\d+)?)\s*"
+        r"(?P<first_unit>mm|cm)?\s*[-~–—至到]\s*"
+        r"(?P<maximum>\d+(?:\.\d+)?)\s*(?P<unit>mm|cm)",
+        re.IGNORECASE,
+    )
+    lymph_ranges = list(lymph_range_pattern.finditer(text))
+    for match in lymph_ranges:
+        aggregate_measurements.append(
+            {
+                "structure": "颈部淋巴结",
+                "minimum": float(match.group("minimum")),
+                "maximum": float(match.group("maximum")),
+                "unit": match.group("unit").lower(),
+                "scope": (
+                    "multiple_bilateral_nodes" if "双侧" in match.group(0) else "multiple_nodes"
+                ),
+                "individual_lesion_trackable": False,
+            }
+        )
     payload = {
         "examination_date": examination_date,
         "modality": modality,
@@ -179,8 +282,9 @@ def _imaging_candidates(
             if "低剂量" in text
             else "noncontrast"
         ),
-        "findings_text": findings_match.group(1).strip() if findings_match else None,
-        "impression_text": impression_match.group(1).strip() if impression_match else None,
+        "findings_text": findings_text,
+        "impression_text": impression_text,
+        "aggregate_measurements": aggregate_measurements,
         "has_3d_reconstruction": any(word in text for word in ("三维重建", "3D重建", "VR")),
         "contains_dose_information": any(word in text for word in ("CTDIvol", "DLP")),
     }
@@ -202,6 +306,11 @@ def _imaging_candidates(
         re.IGNORECASE,
     )
     for match in lesion_pattern.finditer(text):
+        if match.group("nature") == "淋巴结" and any(
+            range_match.start() <= match.start() <= range_match.end()
+            for range_match in lymph_ranges
+        ):
+            continue
         prefix = text[max(0, match.start() - 40) : match.start()]
         location_match = re.search(
             r"(?P<side>左|右)?(?P<location>[上中下]叶|肺门|颈部|甲状腺)", prefix
@@ -214,7 +323,7 @@ def _imaging_candidates(
             "unit": match.group("unit").lower(),
             "modality": modality,
             "examination_date": examination_date,
-            "follow_up_advice": impression_match.group(1).strip() if impression_match else None,
+            "follow_up_advice": impression_text,
         }
         candidates.append(
             {
@@ -229,11 +338,57 @@ def _imaging_candidates(
     return candidates
 
 
-def _pathology_candidate(text: str, document_hash: str) -> list[dict[str, Any]]:
-    if not any(word in text for word in ("病理报告", "病理诊断")):
+def _procedure_candidate(
+    text: str, document_hash: str, report_type: str, procedure_date: str | None
+) -> list[dict[str, Any]]:
+    if report_type != "procedure":
+        return []
+    gauge_match = re.search(r"(\d{1,2})\s*G(?:针)?", text, re.IGNORECASE)
+    pass_match = re.search(r"(?:共)?进针\s*(\d+)\s*次", text)
+    specimen_match = re.search(
+        r"(?:取|取得|获取)[^\d。；]{0,12}(\d+)\s*(?:颗|条|份|块)", text
+    )
+    payload = {
+        "examination_date": procedure_date,
+        "procedure_date": procedure_date,
+        "procedure_type": "core_needle_biopsy" if "粗针" in text else "needle_biopsy",
+        "body_region": "颈部" if "颈部" in text else None,
+        "target": "淋巴结" if "淋巴结" in text else None,
+        "laterality": "左" if "左侧" in text else "右" if "右侧" in text else None,
+        "imaging_guidance": "ultrasound" if "超声" in text else None,
+        "needle_gauge": int(gauge_match.group(1)) if gauge_match else None,
+        "pass_count": int(pass_match.group(1)) if pass_match else None,
+        "specimen_count": int(specimen_match.group(1)) if specimen_match else None,
+        "outcome": None,
+    }
+    return [
+        {
+            "id": _candidate_id(document_hash, "procedure", 0, payload),
+            "candidate_type": "procedure",
+            "payload": payload,
+            "original_text": text,
+            "original_offset": 0,
+            "confidence": 0.94 if procedure_date and gauge_match else 0.84,
+        }
+    ]
+
+
+def _pathology_candidate(
+    text: str,
+    document_hash: str,
+    report_type: str,
+    examination_date: str | None,
+    dates: dict[str, Any],
+) -> list[dict[str, Any]]:
+    if report_type != "pathology":
         return []
     normalized = re.sub(r"\s+", "", text)
-    if re.search(r"(?:未见|无|不支持)恶性", normalized):
+    limited_sample = bool(
+        re.search(r"(?:组织很少|少量淋巴组织|取材较少|取材少|标本少)", normalized)
+    )
+    if re.search(r"(?:肿瘤|恶性).{0,8}(?:证据不足|依据不足)", normalized):
+        malignancy = "insufficient_evidence"
+    elif re.search(r"(?:未见|无|不支持)恶性", normalized):
         malignancy = "negative"
     elif "良性" in normalized:
         malignancy = "benign"
@@ -248,7 +403,34 @@ def _pathology_candidate(text: str, document_hash: str) -> list[dict[str, Any]]:
     site = next(
         (part for part in ("甲状腺", "肺", "淋巴结", "胃", "肠", "乳腺") if part in text), None
     )
+    ki67_match = re.search(r"Ki-?67[^\d]{0,8}(\d+(?:\.\d+)?)\s*%", text, re.I)
+    def marker_result(marker: str) -> str | None:
+        match = re.search(rf"{re.escape(marker)}(.{{0,16}})", text, re.I)
+        if not match:
+            return None
+        result = match.group(1)
+        if any(term in result for term in ("部分阳性", "少数阳性", "少量阳性")):
+            return "partial_positive"
+        if "阳性" in result or "+" in result or "＋" in result:
+            return "positive"
+        if "阴性" in result or "-" in result or "－" in result:
+            return "negative"
+        return "mentioned_result_unclear"
+
+    immunohistochemistry = {
+        key: value
+        for key, value in {
+            "CD20": marker_result("CD20"),
+            "CD3": marker_result("CD3"),
+            "Ki-67": f"{ki67_match.group(1)}%" if ki67_match else None,
+        }.items()
+        if value is not None
+    }
     payload = {
+        "examination_date": examination_date,
+        "specimen_date": dates.get("specimen_date"),
+        "report_date": dates.get("report_date"),
+        "supplement_date": dates.get("supplement_date"),
         "specimen_type": next(
             (word for word in ("活检", "切除标本", "穿刺") if word in text), None
         ),
@@ -260,7 +442,8 @@ def _pathology_candidate(text: str, document_hash: str) -> list[dict[str, Any]]:
         "malignancy_status": malignancy,
         "grade": None,
         "margin_status": None,
-        "immunohistochemistry": None,
+        "sample_adequacy": "limited" if limited_sample else "not_stated",
+        "immunohistochemistry": immunohistochemistry,
         "molecular_findings": None,
         "recommendation": next(
             (line.strip() for line in text.splitlines() if "建议" in line), None
@@ -362,12 +545,31 @@ def _followup_candidates(
 
 def parse_medical_report(text: str, document_hash: str) -> ParsedReport:
     report_type, confidence = _classify(text)
-    examination_date = _date(text)
+    dates = _date_contexts(text)
+    fallback_date = _date(text)
+    if report_type == "procedure":
+        examination_date = dates["procedure_date"] or dates["examination_date"] or fallback_date
+    elif report_type == "pathology":
+        examination_date = (
+            dates["report_date"]
+            or dates["specimen_date"]
+            or dates["examination_date"]
+            or fallback_date
+        )
+    else:
+        examination_date = dates["examination_date"] or dates["report_date"] or fallback_date
     institution_match = re.search(r"^\s*([^\n]{2,40}(?:医院|医学中心|检验所))", text, re.MULTILINE)
     title = next((line.strip() for line in text.splitlines() if line.strip()), None)
     candidates = _lab_candidates(text, document_hash, examination_date)
     candidates.extend(_imaging_candidates(text, document_hash, report_type, examination_date))
-    candidates.extend(_pathology_candidate(text, document_hash))
+    candidates.extend(
+        _procedure_candidate(
+            text, document_hash, report_type, dates["procedure_date"] or examination_date
+        )
+    )
+    candidates.extend(
+        _pathology_candidate(text, document_hash, report_type, examination_date, dates)
+    )
     candidates.extend(_clinical_opinion_candidate(text, document_hash))
     candidates.extend(_followup_candidates(text, document_hash, examination_date))
     recognized_lines = {
@@ -383,10 +585,13 @@ def parse_medical_report(text: str, document_hash: str) -> ParsedReport:
         uncertainties.append("未可靠识别检查日期")
     if confidence < 0.7:
         uncertainties.append("报告分类置信度低，不得自动写入医疗事实")
+    if dates["unassigned_dates"]:
+        uncertainties.append("存在未能可靠归类为检查、取材、报告或补充报告日期的日期")
     return ParsedReport(
         report_type=report_type,
         classification_confidence=confidence,
         examination_date=examination_date,
+        dates=dates,
         institution=institution_match.group(1).strip() if institution_match else None,
         body_region=next(
             (part for part in ("胸部", "颈部", "腹部", "头颅", "甲状腺") if part in text),

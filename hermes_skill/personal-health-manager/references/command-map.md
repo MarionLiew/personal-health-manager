@@ -4,8 +4,8 @@ Always add `--json` to query commands. Use `--dry-run` before and `--confirm` on
 confirmation for mutations.
 
 - Environment: `health status`, `health doctor`
-- General report: `health record import FILE`, `health record list`, `health record show ID`,
-  `health record undo-import IMPORT_ID`
+- General report: `health record import FILE`, `health record reparse SOURCE_DOCUMENT_ID`,
+  `health record list`, `health record show ID`, `health record undo-import IMPORT_ID`
 - Symptoms: `health symptoms add`, `health symptoms update ID`, `health symptoms resolve ID`,
   `health symptoms reopen ID`, `health symptoms active`, `health symptoms timeline`
 - Follow-up: `health followup add`, `health followup list`, `health followup pending`,
@@ -56,6 +56,9 @@ Mutation gate examples:
   `health dicom dose-screen PATH --confirm --candidate-ids ID1,ID2 --json`.
 - General report imports first save parser candidates; use `record candidates` and explicitly pass
   only accepted IDs to `record confirm-candidates`. Never confirm every candidate implicitly.
+- Reparsing a saved source first uses `record reparse SOURCE_DOCUMENT_ID --dry-run --json`. Show the
+  replacements and pending candidates to be superseded, then use `--confirm` only after explicit
+  approval. Reparse never confirms medical facts and never changes confirmed/rejected candidates.
 
 For a WeChat file, use only the exact local cache path supplied by Hermes and accepted by CLI path
 validation. A rejected path must be copied/approved through deployment configuration by the operator;

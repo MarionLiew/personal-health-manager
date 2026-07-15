@@ -55,7 +55,7 @@ If a different copy already exists, review it first, then update with a timestam
 ```
 
 Backups are stored outside the scanned Skill tree at
-`~/.hermes/backups/personal-health-manager-skills`. Version 0.5.1 automatically moves the earlier
+`~/.hermes/backups/personal-health-manager-skills`. Version 0.5.1 and later automatically move the earlier
 `.personal-health-manager-backups` directory out of `~/.hermes/skills`; otherwise Hermes may load a
 backup copy instead of the active Skill.
 
@@ -141,6 +141,20 @@ Hermes reports preview success or failure separately for every file. A successfu
 only then may say that the original was preserved if the response contains both
 `source_document_id` and `import_id`. Extracted candidate facts require another explicit selection;
 importing the source does not silently promote them to formal medical facts.
+
+### Reparse an already saved report
+
+If the original was saved but its pending candidates were parsed incorrectly, Hermes first runs:
+
+```bash
+~/.hermes/skills/personal-health-manager/tools/health.sh \
+  record reparse SOURCE_DOCUMENT_ID --dry-run --json
+```
+
+It must show the new candidate types, measurements, uncertainties, IDs that would be superseded and
+any protected confirmed/rejected IDs. Only after the user explicitly approves that preview may it
+repeat the command with `--confirm`. Reparse verifies the saved source hash, supersedes only pending
+candidates, creates an audit event and never confirms the replacement candidates automatically.
 
 If the CLI returns `UNSAFE_PATH`, Hermes must stop retrying, show the error code, and state “未导入”.
 It must never fall back to a prose summary that implies the source entered the system.

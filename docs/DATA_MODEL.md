@@ -19,6 +19,11 @@ appointment fields, pathology/clinician-opinion/Dose Screen candidates and remin
 Existing v2 provenance records are preserved. Every applied migration writes `schema_version` and
 `db.migrate` audit rows; an existing database is backed up and integrity-checked before migration.
 
+Parser-only upgrades do not require a database migration. `health record reparse SOURCE_ID` verifies
+the managed source path and SHA-256 before creating replacement candidates. Confirmation marks only
+obsolete `pending` candidates as `superseded`; `confirmed` and `rejected` candidates and their formal
+records are never rewritten. The operation records a `record.reparse` audit event and parser version.
+
 Version 4 adds `PersonalCondition`, `ScarLesion`, `HPVLesion`, `TreatmentEvent`, `LesionImage`,
 `ImmuneContext`, `HealthTimelineEvent` and `RiskFactorProfile`. These are verified medical-management
 facts with the same provenance and audit columns as existing records. Images are content-addressed

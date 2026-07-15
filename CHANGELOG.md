@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.2 - 2026-07-15
+
+- Correctly distinguish neck ultrasound reports, ultrasound-guided biopsy procedures and pathology
+  supplements, including conservative multi-date handling and structured procedure details.
+- Preserve aggregate lymph-node size ranges without converting their lower bound or nearby thyroid
+  wording into an individual lesion measurement.
+- Add `health record reparse SOURCE_ID` with dry-run/confirmation gating, source hash verification,
+  audit logging and protection for confirmed or rejected candidates.
+- Update the Hermes Skill so saved reports can be reparsed only through the CLI and only after the
+  user approves the new preview.
+
 ## 0.5.1 - 2026-07-15
 
 - Allow only the detected Hermes Weixin document-cache directory through a dedicated wrapper

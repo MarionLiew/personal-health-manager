@@ -22,6 +22,7 @@ from health_agent.database.models import (
     Lesion,
     LesionMeasurement,
     PathologyCandidate,
+    Procedure,
     RadiationExposure,
     RecordCandidate,
     SourceDocument,
@@ -32,6 +33,43 @@ from health_agent.importers.report import preview_report
 from health_agent.safety.privacy import require_allowed_import_path
 
 app = typer.Typer(no_args_is_help=True)
+
+PARSER_VERSION = "3"
+
+
+def _add_candidate(
+    session,
+    import_session: ImportSession,
+    candidate: dict,
+) -> RecordCandidate:
+    record_candidate = RecordCandidate(
+        id=candidate["id"],
+        import_session_id=import_session.id,
+        patient_id=import_session.patient_id,
+        candidate_type=candidate["candidate_type"],
+        source_type="system_inference",
+        payload=candidate["payload"],
+        original_text=candidate["original_text"],
+        original_offset=candidate["original_offset"],
+        confidence=candidate["confidence"],
+    )
+    session.add(record_candidate)
+    specialized = {
+        "clinical_opinion": ClinicalOpinionCandidate,
+        "pathology": PathologyCandidate,
+    }.get(candidate["candidate_type"])
+    if specialized:
+        session.add(
+            specialized(
+                id=candidate["id"],
+                import_session_id=import_session.id,
+                patient_id=import_session.patient_id,
+                payload=candidate["payload"],
+                original_text=candidate["original_text"],
+                confidence=candidate["confidence"],
+            )
+        )
+    return record_candidate
 
 
 @app.command("import")
@@ -105,7 +143,7 @@ def import_record(
                 sha256=preview.sha256,
                 human_confirmed=True,
                 parser_name=preview.parser,
-                parser_version="1",
+                parser_version=PARSER_VERSION,
             )
             source.revoked = False
             session.add(source)
@@ -128,36 +166,10 @@ def import_record(
                 entity_type="SourceDocument",
                 entity_id=source.id,
                 file_hash=preview.sha256,
-                metadata={"parser_version": "1", "import_id": import_session.id},
+                metadata={"parser_version": PARSER_VERSION, "import_id": import_session.id},
             )
             for candidate in preview.candidates.get("items", []):
-                record_candidate = RecordCandidate(
-                    id=candidate["id"],
-                    import_session_id=import_session.id,
-                    patient_id="local-primary",
-                    candidate_type=candidate["candidate_type"],
-                    source_type="system_inference",
-                    payload=candidate["payload"],
-                    original_text=candidate["original_text"],
-                    original_offset=candidate["original_offset"],
-                    confidence=candidate["confidence"],
-                )
-                session.add(record_candidate)
-                specialized = {
-                    "clinical_opinion": ClinicalOpinionCandidate,
-                    "pathology": PathologyCandidate,
-                }.get(candidate["candidate_type"])
-                if specialized:
-                    session.add(
-                        specialized(
-                            id=candidate["id"],
-                            import_session_id=import_session.id,
-                            patient_id="local-primary",
-                            payload=candidate["payload"],
-                            original_text=candidate["original_text"],
-                            confidence=candidate["confidence"],
-                        )
-                    )
+                _add_candidate(session, import_session, candidate)
             data.update(
                 {
                     "source_document_id": source.id,
@@ -209,6 +221,161 @@ def show_record(record_id: str, json_output: bool = typer.Option(False, "--json"
             "parser": item.parser_name,
         }
     emit("record.show", data, json_output=json_output)
+
+
+def _specialized_candidate_model(candidate_type: str):
+    return {
+        "clinical_opinion": ClinicalOpinionCandidate,
+        "pathology": PathologyCandidate,
+    }.get(candidate_type)
+
+
+@app.command("reparse")
+def reparse_record(
+    record_id: str,
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    confirm: bool = typer.Option(False, "--confirm"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Re-run the current parser for a saved source without confirming medical facts."""
+    try:
+        if dry_run == confirm:
+            raise ValueError("Specify exactly one of --dry-run or --confirm")
+        settings = load_settings()
+        migrate()
+        with session_scope() as session:
+            source = session.get(SourceDocument, record_id)
+            if source is None or source.revoked:
+                raise ValueError("Active source document not found")
+            source_path = Path(source.local_path).resolve(strict=True)
+            if not source_path.is_relative_to(settings.data_root.resolve()):
+                raise ValueError("Saved source path is outside the managed data root")
+            preview = preview_report(source_path, settings.max_import_bytes)
+            if preview.sha256 != source.sha256:
+                raise ValueError("Saved source integrity check failed")
+            import_session = session.scalar(
+                select(ImportSession)
+                .where(ImportSession.source_document_id == source.id)
+                .where(ImportSession.status != "undone")
+                .order_by(ImportSession.created_at.desc())
+            )
+            if import_session is None:
+                raise ValueError("Active import session not found")
+            existing = session.scalars(
+                select(RecordCandidate).where(
+                    RecordCandidate.import_session_id == import_session.id
+                )
+            ).all()
+            items = preview.candidates.get("items", [])
+            new_ids = {item["id"] for item in items}
+            pending_to_supersede = sorted(
+                item.id for item in existing if item.status == "pending" and item.id not in new_ids
+            )
+            protected = sorted(
+                item.id for item in existing if item.status in {"confirmed", "rejected"}
+            )
+            data = {
+                "source_document_id": source.id,
+                "import_id": import_session.id,
+                "parser": preview.parser,
+                "parser_version": PARSER_VERSION,
+                "report_type": preview.candidates.get("report_type"),
+                "classification_confidence": preview.candidates.get(
+                    "classification_confidence"
+                ),
+                "dates": preview.candidates.get("dates", {}),
+                "candidates": items,
+                "pending_candidate_ids_to_supersede": pending_to_supersede,
+                "protected_candidate_ids": protected,
+            }
+            if dry_run:
+                emit(
+                    "record.reparse.preview",
+                    data,
+                    json_output=json_output,
+                    uncertainties=list(preview.uncertainties),
+                    requires_confirmation=True,
+                )
+                return
+
+            existing_by_id = {item.id: item for item in existing}
+            added: list[str] = []
+            retained: list[str] = []
+            revived: list[str] = []
+            for candidate_data in items:
+                candidate = existing_by_id.get(candidate_data["id"])
+                if candidate is None:
+                    _add_candidate(session, import_session, candidate_data)
+                    added.append(candidate_data["id"])
+                    continue
+                if candidate.status == "superseded":
+                    candidate.status = "pending"
+                    candidate.reviewed_at = None
+                    specialized_model = _specialized_candidate_model(candidate.candidate_type)
+                    if specialized_model and (
+                        specialized := session.get(specialized_model, candidate.id)
+                    ):
+                        specialized.status = "pending"
+                        specialized.reviewed_at = None
+                    revived.append(candidate.id)
+                else:
+                    retained.append(candidate.id)
+                if candidate.status == "pending":
+                    candidate.payload = candidate_data["payload"]
+                    candidate.original_text = candidate_data["original_text"]
+                    candidate.original_offset = candidate_data["original_offset"]
+                    candidate.confidence = candidate_data["confidence"]
+
+            for candidate in existing:
+                if candidate.id not in pending_to_supersede:
+                    continue
+                candidate.status = "superseded"
+                candidate.reviewed_at = datetime.now(UTC)
+                specialized_model = _specialized_candidate_model(candidate.candidate_type)
+                if specialized_model and (
+                    specialized := session.get(specialized_model, candidate.id)
+                ):
+                    specialized.status = "superseded"
+                    specialized.reviewed_at = datetime.now(UTC)
+
+            source.parser_name = preview.parser
+            source.parser_version = PARSER_VERSION
+            import_session.preview = {
+                "sha256": preview.sha256,
+                "filename": source.original_filename,
+                "mime_type": preview.mime_type,
+                "size": preview.size,
+                "parser": preview.parser,
+                "candidates": preview.candidates,
+                "reparsed_at": datetime.now(UTC).isoformat(),
+                "parser_version": PARSER_VERSION,
+            }
+            audit(
+                session,
+                "record.reparse",
+                patient_id=import_session.patient_id,
+                entity_type="SourceDocument",
+                entity_id=source.id,
+                file_hash=source.sha256,
+                metadata={
+                    "import_id": import_session.id,
+                    "parser_version": PARSER_VERSION,
+                    "added": len(added),
+                    "superseded": len(pending_to_supersede),
+                },
+            )
+            data.update(
+                {
+                    "added_candidate_ids": sorted(added),
+                    "retained_candidate_ids": sorted(retained),
+                    "revived_candidate_ids": sorted(revived),
+                    "superseded_candidate_ids": pending_to_supersede,
+                }
+            )
+        emit("record.reparse", data, json_output=json_output)
+    except Exception as exc:
+        emit_error("record.reparse", exc)
+        raise typer.Exit(1) from exc
 
 
 @app.command("candidates")
@@ -291,6 +458,11 @@ def _formalize_candidate(
         session.add(record)
         session.flush()
         return "ImagingReport", record.id
+    if candidate.candidate_type == "procedure":
+        record = Procedure(**common)
+        session.add(record)
+        session.flush()
+        return "Procedure", record.id
     if candidate.candidate_type == "lesion":
         lesion = session.get(Lesion, lesion_id) if lesion_id else None
         if lesion_id and lesion is None:
@@ -499,6 +671,7 @@ def undo_import(
                 LaboratoryReport,
                 LaboratoryResult,
                 ImagingReport,
+                Procedure,
                 Lesion,
                 LesionMeasurement,
                 RadiationExposure,
