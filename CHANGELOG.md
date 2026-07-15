@@ -10,6 +10,8 @@
   stable error code and an explicit “not imported” response.
 - Move Skill backups outside Hermes' recursively scanned `skills` tree and verify that the active
   copy, rather than a legacy backup, is the discoverable Skill.
+- Require fresh CLI dry-runs when retrying earlier attachments; command help and cached error tables
+  no longer count as a retry.
 
 ## 0.5.0 - 2026-07-14
 

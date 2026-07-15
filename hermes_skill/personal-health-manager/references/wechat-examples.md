@@ -17,6 +17,10 @@ User sends one or several medical PDFs without text.
 
 Never say “原始 PDF 已保留” after only reading the files or after a dry-run/error.
 
+If the user says “重新导入刚才的文件” after a failed attempt, execute a fresh dry-run for every
+attachment path still present in the conversation. Do not call only `--help`, and do not reuse the
+earlier error table. Build the new table exclusively from the new CLI JSON responses.
+
 ## Read-only routing
 
 User: “查看我的健康概览”

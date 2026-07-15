@@ -35,6 +35,7 @@ grep -q 'Never run a database client' "$SKILL/SKILL.md"
 grep -q '查看我的健康概览' "$SKILL/references/wechat-examples.md"
 grep -q 'visit-summary --department 耳鼻喉科 --json' "$SKILL/references/wechat-examples.md"
 grep -q 'UNSAFE_PATH' "$SKILL/references/wechat-examples.md"
+grep -q 'does not count as a retry' "$SKILL/SKILL.md"
 grep -q 'config/hermes.yaml' "$WRAPPER"
 grep -q '/Users/marionliew/.hermes/cache/documents' "$PROJECT_DIR/config/hermes.yaml"
 

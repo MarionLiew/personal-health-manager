@@ -48,6 +48,11 @@ For multiple attachments, preview each once and report a per-file result. Ask wh
 successfully previewed files. After confirmation, run the same files with `--confirm --json`, show
 their source/import IDs, then list candidate IDs and ask separately which medical facts to confirm.
 
+When the user asks to retry previously failed attachments, never quote or summarize the old tool
+results. Re-run `record import FILE --dry-run --json` for every requested attachment and use only the
+new JSON responses. Running `record import --help`, checking command availability, or recalling the
+prior error does not count as a retry.
+
 For candidate confirmation, show candidate ID, source text, field value, confidence and uncertainty.
 Allow the user to confirm or reject a subset. Never auto-confirm a low-confidence number, date,
 laterality, pathology status or Dose Screen value. Keep Total DLP separate from event DLP.

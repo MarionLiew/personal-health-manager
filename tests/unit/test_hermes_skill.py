@@ -40,7 +40,10 @@ def test_hermes_skill_has_required_weixin_routes_and_no_direct_data_access() -> 
     assert "file was not imported" in skill
     assert "source_document_id" in skill
     assert "import_id" in skill
+    assert "never quote or summarize the old tool" in skill
+    assert "does not count as a retry" in skill
     assert "UNSAFE_PATH" in examples
+    assert "Do not call only `--help`" in examples
     assert "Never say “原始 PDF 已保留”" in examples
 
     installer = (ROOT / "hermes_skill/install.sh").read_text(encoding="utf-8")
