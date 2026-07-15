@@ -32,8 +32,10 @@ results or work around the CLI.
 2. Invoke a read-only JSON command. For every write, including symptom/treatment additions, report
    imports and lesion changes, invoke `--dry-run --json` first. Summarize candidates, uncertainties,
    duplicate status and sources.
-   When present, show `institution` as an unverified source field. A missing or incorrect hospital
-   name must be corrected before confirmation, especially when it came from OCR.
+   When present, show parser/OCR `institution` as an unverified source field. Correct it only with
+   `health.sh record institution-set SOURCE_DOCUMENT_ID --institution NAME --dry-run --json`, then
+   ask for confirmation and repeat with `--confirm`. This changes source provenance only, never
+   candidates or formal medical facts. Never use reparse to confirm a hospital name.
 3. Ask for explicit confirmation. Invoke the same operation with `--confirm --json` only after an
    affirmative response that refers to that preview. Never auto-confirm.
 4. Preserve the CLI's evidence types, uncertainty, warnings, action level and record IDs. Never turn
@@ -64,6 +66,11 @@ If a source is already saved but its candidates were parsed incorrectly, use
 measurements, uncertainties, pending IDs that would be superseded and protected decisions. Run the same command
 with `--confirm --json` only after explicit approval of that preview. Reparse does not confirm the
 new candidates; do not bypass the subsequent partial candidate-confirmation step.
+
+For a CT reparse, list every candidate's two dimensions, laterality, detailed lobe/segment or
+pleural location and series/image range. Do not proceed when dimensions or location are visibly
+misaligned, or when impression text has been duplicated as new lesions. A verified institution must
+remain unchanged even when OCR proposes a different string.
 
 If a PDF preview says it has no extractable text, do not infer facts from a generic vision tool.
 Ask whether to run local OCR. Only after explicit approval use

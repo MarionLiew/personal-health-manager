@@ -38,6 +38,13 @@ Version 5 adds nullable, indexed `source_documents.institution`. The parser copi
 each candidate, where it remains `system_inference` until human review, and confirmed formal-record
 details retain the same institution for provenance and cross-hospital reporting.
 
+Version 6 adds `institution_verified`, `institution_source_type` and `institution_updated_at`.
+`record institution-set` confirms only source provenance, records an audit event and never changes
+candidate status, candidate payloads or formal medical records. Parser/OCR values remain unverified
+`system_inference`; a human-confirmed `source_fact` institution is protected during later reparses.
+Parser version 8 additionally stores two-axis CT measurements and detailed report locations in
+candidate JSON without changing the formal lesion schema.
+
 The GPT analysis bundle is a versioned export document, not a database entity. It contains
 pseudonymous source references and confirmed structured data. Optional pending candidates are stored
 under `unconfirmed_data` with `status=pending` and `source_type=system_inference`; they are never

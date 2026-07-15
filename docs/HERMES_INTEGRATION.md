@@ -182,11 +182,24 @@ any protected confirmed/rejected IDs. Only after the user explicitly approves th
 repeat the command with `--confirm`. Reparse verifies the saved source hash, supersedes only pending
 candidates, creates an audit event and never confirms the replacement candidates automatically.
 
-The preview also includes `institution`. Hermes must show it as an unverified hospital/source field
-before confirmation. Confirmed reparse stores it on `SourceDocument`, while confirmed candidate
-details retain the same value for provenance. Exact source filtering is available through
-`record list --institution INSTITUTION --json`. OCR-derived hospital names remain subject to the
-same explicit review as dates, measurements, units, locations and laterality.
+The reparse preview includes both parsed and effective institution provenance. OCR/parser hospital
+text is unverified and must never be confirmed by reparsing medical candidates. Confirm a hospital
+independently instead:
+
+```bash
+~/.hermes/skills/personal-health-manager/tools/health.sh \
+  record institution-set SOURCE_DOCUMENT_ID --institution 完整医院名称 --dry-run --json
+```
+
+Hermes shows the current and proposed values and states that no candidate or formal medical record
+will change. Only after the user approves that exact preview may Hermes repeat it with `--confirm`.
+The confirmed source field is a `source_fact`, is audited, and is protected from later OCR/reparse
+replacement. Exact source filtering remains available through
+`record list --institution INSTITUTION --json`.
+
+For CT reparse, Hermes must show every numbered finding with both dimensions, laterality, detailed
+lung/pleural location and series/image range. It must flag missing fields and must not accept a
+candidate set that repeats impression text as additional lesions.
 
 If the CLI returns `UNSAFE_PATH`, Hermes must stop retrying, show the error code, and state “未导入”.
 It must never fall back to a prose summary that implies the source entered the system.

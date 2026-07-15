@@ -27,6 +27,68 @@ def test_ct_report_extracts_lesion_but_does_not_claim_diagnosis() -> None:
     assert "diagnosis" not in lesion["payload"]
 
 
+def test_ct_numbered_lesions_preserve_two_dimensions_and_do_not_repeat_impression() -> None:
+    text = """虚构市影像医院
+胸部CT检查报告
+检查日期：2026-06-17
+检查所见：
+结节1：左肺下叶背段见实性结节，大小约5×3mm，序列2图像20-21。
+结节2：左肺下叶前内基底段见实性结节，大小约4×2mm，序列2图像31。
+结节3：左上胸膜见结节样增厚，大小约3×2mm，序列2图像40。
+结节4：右中胸膜见结节样增厚，大小约3×2mm，序列2图像55。
+结节5：右中叶外段见实性结节，大小约次2mm，序列2图像61。
+结节6：左肺下叶背段见磨玻璃结节，大小约6×4mm，序列2图像80。
+诊断意见：左肺下叶背段磨玻璃结节约6×4mm，同前相仿；建议12个月后复查。
+"""
+
+    parsed = parse_medical_report(text, "9" * 64)
+    lesions = [item for item in parsed.candidates if item["candidate_type"] == "lesion"]
+
+    assert len(lesions) == 6
+    payloads = [item["payload"] for item in lesions]
+    assert payloads[0]["dimensions"] == [
+        {"axis": "long", "value": 5.0},
+        {"axis": "short", "value": 3.0},
+    ]
+    assert payloads[0]["laterality"] == "左"
+    assert payloads[0]["anatomical_location"] == "下叶"
+    assert payloads[0]["segment"] == "背段"
+    assert payloads[0]["series_number"] == 2
+    assert payloads[0]["image_number_start"] == 20
+    assert payloads[0]["image_number_end"] == 21
+    assert payloads[2]["anatomical_location"] == "胸膜"
+    assert payloads[3]["anatomical_location"] == "胸膜"
+    assert payloads[2]["laterality"] == "左"
+    assert payloads[3]["laterality"] == "右"
+    assert payloads[4]["size_short"] is None
+    assert payloads[4]["size"] == 2.0
+    assert sum(item["lesion_kind"] == "磨玻璃结节" for item in payloads) == 1
+
+
+def test_ct_same_size_lesions_at_different_images_are_not_deduplicated() -> None:
+    text = """虚构市影像医院
+胸部CT检查报告
+检查日期：2026-05-29
+检查所见：
+结节1：左侧胸膜见实性结节，大小约2×2mm，序列3图像46-48。
+结节2：左侧胸膜见实性结节，大小约2×2mm，序列3图像61-63。
+诊断意见：肺内多发小结节，建议结合临床。
+"""
+
+    parsed = parse_medical_report(text, "8" * 64)
+    lesions = [item for item in parsed.candidates if item["candidate_type"] == "lesion"]
+
+    assert len(lesions) == 2
+    image_ranges = [
+        (item["payload"]["image_number_start"], item["payload"]["image_number_end"])
+        for item in lesions
+    ]
+    assert image_ranges == [
+        (46, 48),
+        (61, 63),
+    ]
+
+
 def test_ultrasound_multiple_lymph_node_range_is_not_an_individual_lesion() -> None:
     text = """虚构超声报告
 检查日期：2026-04-10

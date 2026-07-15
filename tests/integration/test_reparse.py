@@ -140,3 +140,105 @@ def test_procedure_candidate_can_be_partially_confirmed(isolated_env: Path) -> N
             assert procedure.details["specimen_count"] == 4
     finally:
         path.unlink(missing_ok=True)
+
+
+def test_institution_can_be_confirmed_without_changing_candidates_and_survives_reparse(
+    isolated_env: Path,
+) -> None:
+    path, imported = _import_fixture("fictional_neck_range_us.txt")
+    try:
+        engine = build_engine(isolated_env)
+        with session_scope(engine) as session:
+            before = [
+                (item.id, item.status, item.payload.copy())
+                for item in session.scalars(select(RecordCandidate)).all()
+            ]
+
+        preview = runner.invoke(
+            app,
+            [
+                "record",
+                "institution-set",
+                imported["source_document_id"],
+                "--institution",
+                "虚构市第二医院",
+                "--dry-run",
+                "--json",
+            ],
+        )
+        assert preview.exit_code == 0, preview.output
+        preview_data = json.loads(preview.output)
+        assert preview_data["requires_confirmation"] is True
+        assert preview_data["data"]["will_change_candidates"] is False
+        assert preview_data["data"]["will_change_formal_medical_records"] is False
+
+        confirmed = runner.invoke(
+            app,
+            [
+                "record",
+                "institution-set",
+                imported["source_document_id"],
+                "--institution",
+                "虚构市第二医院",
+                "--confirm",
+                "--json",
+            ],
+        )
+        assert confirmed.exit_code == 0, confirmed.output
+        with session_scope(engine) as session:
+            source = session.get(SourceDocument, imported["source_document_id"])
+            assert source is not None
+            assert source.institution == "虚构市第二医院"
+            assert source.institution_verified is True
+            assert source.institution_source_type == "source_fact"
+            after = [
+                (item.id, item.status, item.payload.copy())
+                for item in session.scalars(select(RecordCandidate)).all()
+            ]
+            assert after == before
+
+        reparsed = runner.invoke(
+            app,
+            [
+                "record",
+                "reparse",
+                imported["source_document_id"],
+                "--confirm",
+                "--json",
+            ],
+        )
+        assert reparsed.exit_code == 0, reparsed.output
+        assert json.loads(reparsed.output)["data"]["institution"] == "虚构市第二医院"
+        with session_scope(engine) as session:
+            source = session.get(SourceDocument, imported["source_document_id"])
+            assert source is not None and source.institution == "虚构市第二医院"
+            assert (
+                session.scalar(
+                    select(func.count())
+                    .select_from(AuditLog)
+                    .where(AuditLog.operation == "record.institution-set")
+                )
+                == 1
+            )
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def test_institution_set_validation_uses_stable_json_error(isolated_env: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "record",
+            "institution-set",
+            "missing-source",
+            "--institution",
+            "不完整名称",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["status"] == "error"
+    assert payload["error"]["code"] == "VALIDATION_ERROR"

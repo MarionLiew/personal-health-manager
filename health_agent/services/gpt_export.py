@@ -136,6 +136,8 @@ def build_gpt_bundle(
         {
             "source_ref": source_refs[item.id],
             "institution": item.institution if include_institutions else None,
+            "institution_verified": item.institution_verified,
+            "institution_source_type": item.institution_source_type,
             "generated_at": item.generated_at.isoformat() if item.generated_at else None,
             "imported_at": item.imported_at.isoformat(),
             "mime_type": item.mime_type,

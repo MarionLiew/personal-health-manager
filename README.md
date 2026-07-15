@@ -6,7 +6,9 @@ Hermes 只能调用 CLI，不能执行 SQL。
 
 ## 当前版本
 
-版本 `0.6.0` 增加供GPT分析的本地脱敏JSON导出，并明确禁止自动上传；同时保留结构化医院来源字段、
+版本 `0.6.1` 增加医院字段的独立预览/确认和审计，人工确认的医院不会被后续OCR覆盖；
+胸部CT病灶可保留二维尺寸、左右侧、肺叶/肺段、序列和图像范围，并避免诊断段重复提取。
+同时保留0.6.0供GPT分析的本地脱敏JSON导出及禁止自动上传规则、结构化医院来源字段、
 扫描PDF的显式本地Vision OCR预览，以及双侧/多个淋巴结二维代表测量，
 OCR默认关闭且所有字段必须人工确认；同时继承0.5.4对病理免疫组化“部分+”、Ki-67约数、补充报告日期、全部建议及
 送检碎组织尺寸边界；同时继承0.5.3的PDF布局保留解析、凝血与扩展血常规、喉镜/鼻内镜
@@ -52,6 +54,16 @@ RDSR 可在确认后作为设备记录入账；Dose Screen 必须按候选 ID �
 已保存但尚未确认候选的报告可运行 `health record reparse SOURCE_ID --dry-run --json` 预览
 新解析结果，人工确认后再将同一命令改为 `--confirm`。重解析只会替换尚未确认的旧候选，
 不会改变已确认或已拒绝的医疗事实。
+
+医院名称独立确认不会重解析或确认任何医疗事实：
+
+```bash
+health record institution-set SOURCE_ID --institution 完整医院名称 --dry-run --json
+health record institution-set SOURCE_ID --institution 完整医院名称 --confirm --json
+```
+
+第二条命令只能在用户核对第一条预览后运行。医院字段会标记为已人工确认的
+`source_fact`，以后重解析仍保留该值。
 
 扫描PDF默认不执行OCR。用户明确同意后，可用
 `health record reparse SOURCE_ID --ocr --dry-run --json` 进行完全本地的OCR预览。OCR候选

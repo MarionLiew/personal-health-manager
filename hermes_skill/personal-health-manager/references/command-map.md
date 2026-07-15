@@ -5,6 +5,7 @@ confirmation for mutations.
 
 - Environment: `health status`, `health doctor`
 - General report: `health record import FILE`, `health record reparse SOURCE_DOCUMENT_ID`,
+  `health record institution-set SOURCE_DOCUMENT_ID --institution INSTITUTION`,
   `health record list [--institution INSTITUTION]`, `health record show ID`,
   `health record undo-import IMPORT_ID`
 - Symptoms: `health symptoms add`, `health symptoms update ID`, `health symptoms resolve ID`,
@@ -63,6 +64,12 @@ Mutation gate examples:
   parsed institution, replacements and pending candidates to be superseded, then use `--confirm`
   only after explicit approval. Reparse never confirms medical facts and never changes
   confirmed/rejected candidates.
+- Hospital correction is a separate write: `record institution-set SOURCE_DOCUMENT_ID --institution
+  INSTITUTION --dry-run --json`, followed by the same command with `--confirm` only after approval.
+  State that candidates and formal medical facts are unchanged. Never use reparse as hospital
+  confirmation, and never let parser/OCR replace a verified hospital.
+- CT reparse previews must show two dimensions, side, detailed location and series/image range for
+  every numbered lesion and must not duplicate findings repeated in the impression.
 - For a scanned PDF only after explicit OCR approval, add `--ocr` to the import or reparse dry-run.
   Show all OCR uncertainties and require field-by-field review. Do not use external OCR, generic
   vision tools, or `--confirm` until the user has approved that exact preview.

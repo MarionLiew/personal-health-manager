@@ -336,6 +336,8 @@ def _clean_report_section(value: str | None) -> str | None:
                 "报告医生",
                 "审核医生",
                 "检查技师",
+                "住培医师",
+                "温馨提示",
             )
         ):
             break
@@ -343,6 +345,130 @@ def _clean_report_section(value: str | None) -> str | None:
         if stripped:
             lines.append(stripped)
     return "\n".join(lines) or None
+
+
+def _ct_lesion_candidates(
+    findings_text: str | None,
+    findings_offset: int,
+    document_hash: str,
+    examination_date: str | None,
+    impression_text: str | None,
+) -> list[dict[str, Any]]:
+    if not findings_text:
+        return []
+    location_pattern = (
+        r"(?:左|右)(?:肺)?(?:上叶|中叶|下叶)"
+        r"(?:(?:尖后|前内基底|外基底|内基底|背|内|外)段)?"
+        r"|(?:左|右)肺斜裂|(?:左|右)(?:侧|上|中|下)?胸膜"
+    )
+    pattern = re.compile(
+        rf"(?:结节\s*(?P<index>\d+)\s*[:：]\s*)?"
+        rf"(?P<location>{location_pattern})[^。；]{{0,70}}?"
+        r"(?P<nature>磨玻璃结节|实性结节|结节样增厚|肿块|病灶|结节)"
+        r"[^。；]{0,70}?(?:(?:大小|直径)\s*约?\s*(?:为|次)?|约\s*(?:为|次)?)\s*"
+        r"(?P<long>\d+(?:\.\d+)?)\s*(?P<long_unit>mm|cm)?"
+        r"(?:\s*[xX×*]\s*(?P<short>\d+(?:\.\d+)?)\s*(?P<short_unit>mm|cm))?",
+        re.IGNORECASE,
+    )
+    candidates: list[dict[str, Any]] = []
+    seen: set[tuple[object, ...]] = set()
+    for match in pattern.finditer(findings_text):
+        location_detail = match.group("location")
+        laterality = location_detail[0]
+        segment_match = re.search(
+            r"(尖后段|前内基底段|外基底段|内基底段|背段|内段|外段)",
+            location_detail,
+        )
+        lobe_match = re.search(r"(上叶|中叶|下叶)", location_detail)
+        anatomical_location = (
+            "胸膜"
+            if "胸膜" in location_detail
+            else "肺裂"
+            if "斜裂" in location_detail
+            else lobe_match.group(1)
+            if lobe_match
+            else "肺"
+        )
+        sentence_end = re.search(r"[。；\n]", findings_text[match.end() :])
+        raw_end = (
+            match.end() + sentence_end.start()
+            if sentence_end
+            else len(findings_text)
+        )
+        raw = findings_text[match.start() : raw_end].strip()
+        series_match = re.search(r"序列\s*(\d+)", raw)
+        image_match = re.search(r"图像\s*(\d+)(?:\s*[-–—]\s*(\d+))?", raw)
+        tail = findings_text[match.end() : match.end() + 60]
+        lung_rads_match = re.search(
+            r"Lung\s*-?\s*RADS\s*(\d+)\s*类?", tail, re.IGNORECASE
+        )
+        long_value = float(match.group("long"))
+        short_value = float(match.group("short")) if match.group("short") else None
+        reported_unit = match.group("short_unit") or match.group("long_unit")
+        if reported_unit is None:
+            continue
+        unit = reported_unit.lower()
+        fingerprint = (
+            location_detail,
+            match.group("nature"),
+            long_value,
+            short_value,
+            unit,
+            series_match.group(1) if series_match else None,
+            image_match.group(1) if image_match else None,
+            image_match.group(2) if image_match else None,
+        )
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        dimensions = [{"axis": "long", "value": long_value}]
+        if short_value is not None:
+            dimensions.append({"axis": "short", "value": short_value})
+        lesion = {
+            "lesion_kind": match.group("nature"),
+            "laterality": laterality,
+            "anatomical_location": anatomical_location,
+            "location_detail": location_detail,
+            "segment": segment_match.group(1) if segment_match else None,
+            "size": long_value,
+            "size_long": long_value,
+            "size_short": short_value,
+            "dimensions": dimensions,
+            "unit": unit,
+            "modality": "CT",
+            "examination_date": examination_date,
+            "series_number": int(series_match.group(1)) if series_match else None,
+            "image_number_start": int(image_match.group(1)) if image_match else None,
+            "image_number_end": (
+                int(image_match.group(2))
+                if image_match and image_match.group(2)
+                else int(image_match.group(1))
+                if image_match
+                else None
+            ),
+            "report_lesion_index": int(match.group("index")) if match.group("index") else None,
+            "lung_rads_category": (
+                int(lung_rads_match.group(1)) if lung_rads_match else None
+            ),
+            "measurement_scope": "individual_reported_lesion",
+            "follow_up_advice": impression_text,
+        }
+        offset = findings_offset + match.start()
+        candidates.append(
+            {
+                "id": _candidate_id(document_hash, "lesion", offset, lesion),
+                "candidate_type": "lesion",
+                "payload": lesion,
+                "original_text": raw,
+                "original_offset": offset,
+                "confidence": 0.94
+                if examination_date and short_value is not None
+                else 0.88
+                if examination_date
+                else 0.76,
+            }
+        )
+    return candidates
 
 
 def _imaging_candidates(
@@ -396,6 +522,7 @@ def _imaging_candidates(
         )
     ]
     findings_text = _clean_report_section(findings_match.group(1) if findings_match else None)
+    findings_offset = findings_match.start(1) if findings_match else 0
     if not findings_text and relevant_sentences:
         findings_text = "；".join(relevant_sentences)
     impression_text = _clean_report_section(
@@ -513,6 +640,17 @@ def _imaging_candidates(
             else 0.75,
         }
     ]
+    if report_type in {"ct", "pet_ct"}:
+        candidates.extend(
+            _ct_lesion_candidates(
+                findings_text,
+                findings_offset,
+                document_hash,
+                examination_date,
+                impression_text,
+            )
+        )
+        return candidates
     lesion_pattern = re.compile(
         r"(?P<nature>结节|淋巴结|肿块|病灶)[^。；\n]{0,30}?"
         r"(?P<size>\d+(?:\.\d+)?)\s*(?P<unit>mm|cm)",
@@ -783,9 +921,11 @@ def _clinical_opinion_candidate(text: str, document_hash: str) -> list[dict[str,
 def _followup_candidates(
     text: str, document_hash: str, examination_date: str | None
 ) -> list[dict[str, Any]]:
-    match = re.search(r"建议\s*(\d+)\s*(?:至|到|[-~])\s*(\d+)\s*个?月(?:后)?复查", text)
+    match = re.search(
+        r"建议\s*(\d+)\s*(?:至|到|[-~])\s*(\d+)\s*个?月(?:后)?复\s*查", text
+    )
     if not match:
-        match = re.search(r"(\d+)\s*个?月后(?:复查|复诊)", text)
+        match = re.search(r"(\d+)\s*个?月后复\s*(?:查|诊)", text)
     if not match:
         return []
     minimum, maximum = (

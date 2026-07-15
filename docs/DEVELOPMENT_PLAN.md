@@ -2,7 +2,7 @@
 
 Status date: 2026-07-15.
 
-Current release: `0.6.0`; current schema: `5`.
+Current release: `0.6.1`; current schema: `6`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -54,6 +54,11 @@ migration 5 adds the indexed source-document institution used by record listing 
 Release 0.6.0 adds a local, redacted GPT analysis bundle. It does not call an external API or upload
 data. Pending candidates remain excluded unless explicitly requested and are always separated from
 confirmed facts.
+
+Release 0.6.1 separates hospital confirmation from medical-candidate confirmation. Schema 6 records
+whether institution provenance is parser-inferred or human-confirmed, and parser version 8 preserves
+two-dimensional CT lesion measurements, laterality and detailed locations while excluding repeated
+impression text from lesion extraction.
 
 No unfinished feature is represented as production-ready. The implementation order prioritizes
 provenance, confirmation, audit, and safety before medical parsing or analysis.

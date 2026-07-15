@@ -28,7 +28,7 @@ from health_agent.database.models import (
 from health_agent.database.session import build_engine
 from health_agent.errors import ConfirmationRequired
 
-LATEST_SCHEMA_VERSION = 5
+LATEST_SCHEMA_VERSION = 6
 SCHEMA_VERSION = LATEST_SCHEMA_VERSION
 
 
@@ -222,12 +222,25 @@ def _migration_5(connection: Connection) -> None:
     )
 
 
+def _migration_6(connection: Connection) -> None:
+    _add_columns(
+        connection,
+        "source_documents",
+        {
+            "institution_verified": "BOOLEAN NOT NULL DEFAULT 0",
+            "institution_source_type": "VARCHAR(32)",
+            "institution_updated_at": "DATETIME",
+        },
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "initial_schema", _migration_1),
     Migration(2, "record_candidates", _migration_2),
     Migration(3, "daily_medical_management", _migration_3),
     Migration(4, "personal_health_profile", _migration_4),
     Migration(5, "source_document_institution", _migration_5),
+    Migration(6, "verified_source_institution", _migration_6),
 )
 
 

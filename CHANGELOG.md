@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1 - 2026-07-15
+
+- Add schema migration 6 and `health record institution-set` so a source hospital can be previewed,
+  explicitly confirmed and audited without changing report candidates or formal medical facts.
+- Mark institution provenance as unverified parser inference or verified `source_fact`; a later
+  reparse preserves a manually confirmed institution instead of replacing it with OCR output.
+- Parse numbered CT findings only from the findings section, preserving both dimensions,
+  laterality, detailed lobe/segment or pleural location, series and image ranges.
+- Prevent a repeated impression from creating duplicate lesion candidates, while retaining
+  distinct same-size findings that have different image ranges.
+
 ## 0.6.0 - 2026-07-15
 
 - Add a local `health export gpt-bundle` JSON export with dry-run/confirmation gating, restrictive

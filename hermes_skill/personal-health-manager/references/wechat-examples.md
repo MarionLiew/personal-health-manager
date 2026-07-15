@@ -27,6 +27,17 @@ candidates and IDs that would be superseded, and ask for confirmation. After exp
 the same command with `--confirm --json`; state clearly that the new candidates are still unconfirmed
 medical facts until the user selects candidate IDs.
 
+If only the hospital is missing or wrong, do not reparse the report. Run
+`health record institution-set SOURCE_DOCUMENT_ID --institution 完整医院名称 --dry-run --json`, show
+the current/proposed value and explicitly say that no candidate or formal medical fact changes.
+After the user approves that preview, repeat with `--confirm`. Report the verified source type and
+audit ID. A later reparse must preserve this hospital even if OCR reads a different name.
+
+For a chest CT reparse, show one row per numbered finding: side, lobe/segment or pleura, long and
+short dimensions, unit, series and image range. If the diagnosis repeats a finding, it must not
+appear as another lesion candidate. Ask for reparse confirmation separately from later candidate
+confirmation.
+
 If a PDF returns “no extractable text”, say that no fields were guessed and ask whether to use local
 OCR. After approval, run `health record reparse SOURCE_DOCUMENT_ID --ocr --dry-run --json` for a
 saved source. Display the OCR engine, confidence, extracted source text, candidate IDs and every

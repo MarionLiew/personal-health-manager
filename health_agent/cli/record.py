@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+import re
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,12 +30,13 @@ from health_agent.database.models import (
 )
 from health_agent.database.repository import audit
 from health_agent.database.session import session_scope
+from health_agent.errors import ValidationFailure
 from health_agent.importers.report import preview_report
 from health_agent.safety.privacy import require_allowed_import_path
 
 app = typer.Typer(no_args_is_help=True)
 
-PARSER_VERSION = "7"
+PARSER_VERSION = "8"
 
 
 def _add_candidate(
@@ -166,9 +168,17 @@ def import_record(
                 parser_name=preview.parser,
                 parser_version=PARSER_VERSION,
                 institution=preview.candidates.get("institution"),
+                institution_verified=False,
+                institution_source_type=(
+                    "system_inference" if preview.candidates.get("institution") else None
+                ),
             )
             source.revoked = False
-            source.institution = preview.candidates.get("institution")
+            if not source.institution_verified:
+                source.institution = preview.candidates.get("institution")
+                source.institution_source_type = (
+                    "system_inference" if source.institution else None
+                )
             session.add(source)
             session.flush()
             import_session = ImportSession(
@@ -225,6 +235,8 @@ def list_records(
                     "sha256": item.sha256,
                     "imported_at": item.imported_at.isoformat(),
                     "institution": item.institution,
+                    "institution_verified": item.institution_verified,
+                    "institution_source_type": item.institution_source_type,
                 }
                 for item in records
             ]
@@ -248,8 +260,74 @@ def show_record(record_id: str, json_output: bool = typer.Option(False, "--json"
             "revoked": item.revoked,
             "parser": item.parser_name,
             "institution": item.institution,
+            "institution_verified": item.institution_verified,
+            "institution_source_type": item.institution_source_type,
         }
     emit("record.show", data, json_output=json_output)
+
+
+@app.command("institution-set")
+def set_institution(
+    record_id: str,
+    institution: str = typer.Option(..., "--institution"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    confirm: bool = typer.Option(False, "--confirm"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Independently confirm a source document's institution without changing medical facts."""
+    if dry_run == confirm:
+        raise ValidationFailure("Specify exactly one of --dry-run or --confirm")
+    normalized = " ".join(institution.split())
+    if not normalized or len(normalized) > 255:
+        raise ValidationFailure("Institution must contain 1 to 255 characters")
+    if not re.search(r"(?:医院|医学中心|检验所|门诊部|诊所)$", normalized):
+        raise ValidationFailure("Institution must be a complete medical organization name")
+    migrate()
+    with session_scope() as session:
+        source = session.get(SourceDocument, record_id)
+        if source is None or source.revoked:
+            raise ValidationFailure("Active source document not found")
+        changed = not (
+            source.institution == normalized
+            and source.institution_verified
+            and source.institution_source_type == "source_fact"
+        )
+        data = {
+            "source_document_id": source.id,
+            "current_institution": source.institution,
+            "proposed_institution": normalized,
+            "current_verified": source.institution_verified,
+            "source_type": "source_fact",
+            "verification_status": "human_confirmed",
+            "will_change_candidates": False,
+            "will_change_formal_medical_records": False,
+            "changed": changed,
+        }
+        if dry_run:
+            emit(
+                "record.institution-set.preview",
+                data,
+                json_output=json_output,
+                requires_confirmation=True,
+            )
+            return
+        if changed:
+            source.institution = normalized
+            source.institution_verified = True
+            source.institution_source_type = "source_fact"
+            source.institution_updated_at = datetime.now(UTC)
+            entry = audit(
+                session,
+                "record.institution-set",
+                patient_id=source.patient_id,
+                entity_type="SourceDocument",
+                entity_id=source.id,
+                file_hash=source.sha256,
+                metadata={"verified": True},
+            )
+            data["audit_id"] = entry.id
+        data["institution"] = source.institution
+    emit("record.institution-set", data, json_output=json_output)
 
 
 def _specialized_candidate_model(candidate_type: str):
@@ -296,7 +374,13 @@ def reparse_record(
                     RecordCandidate.import_session_id == import_session.id
                 )
             ).all()
+            parsed_institution = preview.candidates.get("institution")
+            effective_institution = (
+                source.institution if source.institution_verified else parsed_institution
+            )
             items = preview.candidates.get("items", [])
+            for item in items:
+                item["payload"]["institution"] = effective_institution
             new_ids = {item["id"] for item in items}
             pending_to_supersede = sorted(
                 item.id for item in existing if item.status == "pending" and item.id not in new_ids
@@ -314,7 +398,9 @@ def reparse_record(
                     "classification_confidence"
                 ),
                 "dates": preview.candidates.get("dates", {}),
-                "institution": preview.candidates.get("institution"),
+                "parsed_institution": parsed_institution,
+                "institution": effective_institution,
+                "institution_verified": source.institution_verified,
                 "candidates": items,
                 "pending_candidate_ids_to_supersede": pending_to_supersede,
                 "protected_candidate_ids": protected,
@@ -372,7 +458,11 @@ def reparse_record(
 
             source.parser_name = preview.parser
             source.parser_version = PARSER_VERSION
-            source.institution = preview.candidates.get("institution")
+            if not source.institution_verified:
+                source.institution = parsed_institution
+                source.institution_source_type = (
+                    "system_inference" if parsed_institution else None
+                )
             import_session.preview = {
                 "sha256": preview.sha256,
                 "filename": source.original_filename,
