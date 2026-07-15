@@ -142,6 +142,10 @@ only then may say that the original was preserved if the response contains both
 `source_document_id` and `import_id`. Extracted candidate facts require another explicit selection;
 importing the source does not silently promote them to formal medical facts.
 
+The dry-run `duplicate` field is an exact SHA-256 lookup. When it is true, Hermes must show the
+existing `source_document_id` and `import_id` and must not describe the attachment as a new source.
+Similar-looking reports with different hashes remain review warnings rather than automatic matches.
+
 ### Reparse an already saved report
 
 If the original was saved but its pending candidates were parsed incorrectly, Hermes first runs:

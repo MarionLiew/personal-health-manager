@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.3 - 2026-07-15
+
+- Preserve PDF table layout during text extraction so laboratory result, unit and reference columns
+  are not confused with row numbers.
+- Add structured coagulation and expanded CBC/reticulocyte items with ASCII abbreviation boundaries
+  that prevent `PCT` from becoming CT and `RSI` from becoming serum iron.
+- Classify laryngoscopy and nasal endoscopy separately from pathology even when a blank pathology
+  template is present, and retain RFS/RSI as report scores rather than laboratory results.
+- Recognize `MR` radiology reports, separate examination/report dates and findings/impression
+  sections, and remove report footers from candidate text.
+- Make report-import dry-runs query exact SHA-256 duplicates and return the existing source/import
+  identifiers before confirmation.
+- Add parser version 4 and fictional cross-hospital regression fixtures for coagulation, CBC,
+  endoscopy and MRI layouts.
+
 ## 0.5.2 - 2026-07-15
 
 - Correctly distinguish neck ultrasound reports, ultrasound-guided biopsy procedures and pathology

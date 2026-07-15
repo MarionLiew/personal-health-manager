@@ -8,12 +8,50 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 LAB_ALIASES = {
+    "凝血酶原时间": ("凝血酶原时间", "PT"),
+    "凝血酶原活动度": ("凝血酶原活动度", "PTA", "PT(%)"),
+    "国际标准化比值": ("国际标准化比值", "INR值", "INR"),
+    "活化部分凝血活酶时间": ("活化部分凝血活酶时间", "APTT"),
+    "凝血酶时间": ("凝血酶时间", "TT"),
+    "纤维蛋白原": ("纤维蛋白原", "FIB"),
+    "中性粒细胞比例": ("中性分叶粒细胞比例", "中性粒细胞比例", "NEUT%"),
+    "淋巴细胞比例": ("淋巴细胞比例", "LYMPH%", "LY%"),
+    "单核细胞比例": ("单核细胞比例", "MONO%", "MO%"),
+    "嗜酸粒细胞比例": ("嗜酸细胞比例", "嗜酸粒细胞比例", "EO%"),
+    "嗜碱粒细胞比例": ("嗜碱细胞比例", "嗜碱粒细胞比例", "BASO%"),
     "白细胞": ("白细胞", "WBC"),
-    "中性粒细胞绝对值": ("中性粒细胞绝对值", "中性粒细胞计数", "NEUT#", "ANC"),
-    "淋巴细胞绝对值": ("淋巴细胞绝对值", "淋巴细胞计数", "LYMPH#"),
+    "中性粒细胞绝对值": (
+        "中性粒细胞绝对值",
+        "中性分叶粒细胞计数",
+        "中性粒细胞计数",
+        "NEUT#",
+        "ANC",
+    ),
+    "淋巴细胞绝对值": ("淋巴细胞绝对值", "淋巴细胞计数", "LYMPH#", "LY#"),
+    "单核细胞绝对值": ("单核细胞计数", "MONO#", "MO#"),
+    "嗜酸粒细胞绝对值": ("嗜酸细胞计数", "嗜酸粒细胞计数", "EO#"),
+    "嗜碱粒细胞绝对值": ("嗜碱细胞计数", "嗜碱粒细胞计数", "BASO#"),
+    "红细胞比积": ("红细胞比积", "HCT", "Ht"),
+    "平均红细胞血红蛋白浓度": ("平均红细胞血红蛋白浓度", "MCHC"),
+    "平均红细胞血红蛋白含量": ("平均红细胞血红蛋白含量", "MCH"),
+    "平均红细胞体积": ("平均红细胞体积", "MCV"),
+    "红细胞分布宽度CV": ("RBC分布宽度CV", "RDW-CV"),
+    "红细胞分布宽度SD": ("RBC分布宽度SD", "RDW-SD"),
     "血红蛋白": ("血红蛋白", "HGB", "Hb"),
     "红细胞": ("红细胞", "RBC"),
     "血小板": ("血小板", "PLT"),
+    "血小板压积": ("血小板压积", "PCT"),
+    "平均血小板体积": ("平均血小板体积", "MPV"),
+    "血小板分布宽度": ("血小板分布宽度", "PDW"),
+    "大血小板百分率": ("大血小板百分率", "P-LCR"),
+    "有核红细胞比例": ("有核红细胞%", "NRBC%"),
+    "有核红细胞绝对值": ("有核红细胞#", "NRBC#"),
+    "网织红细胞比例": ("网织红细胞比例", "RET%"),
+    "网织红细胞绝对值": ("网织红细胞#", "RET#"),
+    "高荧光网织红细胞": ("高荧光网织红细胞", "HFR"),
+    "中荧光网织红细胞": ("中荧光网织红细胞", "MFR"),
+    "低荧光网织红细胞": ("低荧光网织红细胞", "LFR"),
+    "未成熟网织红细胞": ("未成熟网织红细胞", "IRF"),
     "超敏CRP": ("超敏C反应蛋白", "超敏CRP", "hs-CRP", "hsCRP"),
     "CRP": ("C反应蛋白", "CRP"),
     "血沉": ("红细胞沉降率", "血沉", "ESR"),
@@ -81,6 +119,18 @@ def _candidate_id(document_hash: str, kind: str, offset: int, payload: dict[str,
     return str(uuid5(NAMESPACE_URL, f"{document_hash}:{kind}:{offset}:{fingerprint}"))
 
 
+def _alias_span(text: str, alias: str) -> tuple[int, int] | None:
+    if re.search(r"[A-Za-z0-9]", alias):
+        match = re.search(
+            rf"(?<![A-Za-z0-9]){re.escape(alias)}(?![A-Za-z0-9])",
+            text,
+            re.IGNORECASE,
+        )
+    else:
+        match = re.search(re.escape(alias), text, re.IGNORECASE)
+    return match.span() if match else None
+
+
 def _date(text: str) -> str | None:
     match = re.search(r"(20\d{2})[年./-](\d{1,2})[月./-](\d{1,2})日?", text)
     if not match:
@@ -93,10 +143,10 @@ def _date(text: str) -> str | None:
 
 def _labeled_date(text: str, labels: tuple[str, ...]) -> str | None:
     label_pattern = "|".join(re.escape(label) for label in labels)
-    match = re.search(
-        rf"(?:{label_pattern})\s*[:：]?\s*(20\d{{2}})[年./-](\d{{1,2}})[月./-](\d{{1,2}})日?",
-        text,
-    )
+    date_pattern = r"(20\d{2})[年./-](\d{1,2})[月./-](\d{1,2})日?"
+    match = re.search(rf"(?:{label_pattern})[ \t]*[:：]?[ \t]*{date_pattern}", text)
+    if not match:
+        match = re.search(rf"{date_pattern}[ \t]*(?:{label_pattern})[ \t]*[:：]?", text)
     if not match:
         return None
     try:
@@ -110,6 +160,8 @@ def _date_contexts(text: str) -> dict[str, Any]:
         "examination_date": _labeled_date(text, ("检查日期", "检查时间")),
         "procedure_date": _labeled_date(text, ("操作日期", "手术日期", "治疗日期")),
         "specimen_date": _labeled_date(text, ("取材日期", "送检日期", "标本日期")),
+        "collection_date": _labeled_date(text, ("采集日期", "采集时间")),
+        "received_date": _labeled_date(text, ("接收日期", "接收时间")),
         "report_date": _labeled_date(text, ("报告日期", "报告时间", "审核日期")),
         "supplement_date": _labeled_date(text, ("补充报告日期", "补充日期")),
     }
@@ -129,6 +181,12 @@ def _date_contexts(text: str) -> dict[str, Any]:
 
 def _classify(text: str) -> tuple[str, float]:
     upper = text.upper()
+    if any(marker in text for marker in ("喉镜检查报告", "鼻内镜检查报告", "内镜所见", "内镜诊断")):
+        return "endoscopy", 0.96
+    if any(marker in text for marker in ("医学检验报告", "检验报告", "参考区间")) and any(
+        marker in text for marker in ("标本", "检测项目", "检验者", "凝血", "血常规")
+    ):
+        return "laboratory", 0.97
     if re.search(r"(?:粗针|空芯针|穿刺).{0,8}(?:活检|取材)", text) and any(
         marker in text for marker in ("进针", "取组织", "取得组织", "针")
     ):
@@ -145,87 +203,161 @@ def _classify(text: str) -> tuple[str, float]:
             "KI-67",
         )
     )
-    if pathology_markers >= 2 or "病理报告" in text or "病理诊断" in text:
+    pathology_has_content = bool(re.search(r"病理诊断[ \t]*[:：][ \t]*\S+", text))
+    if (
+        pathology_markers >= 2
+        or "病理报告" in text
+        or "病理补充报告" in text
+        or pathology_has_content
+    ):
         return "pathology", min(0.98, 0.82 + pathology_markers * 0.03)
+    if (
+        re.search(r"(?:^|[^A-Z0-9])MR(?:I)?(?:[^A-Z0-9]|$)", upper)
+        and any(marker in text for marker in ("影像所见", "影像诊断", "检查方法"))
+    ):
+        return "mri", 0.96
     for kind, words in REPORT_RULES:
-        hits = sum(1 for word in words if word.upper() in upper)
+        hits = sum(1 for word in words if _alias_span(text, word) is not None)
         if hits:
             return kind, min(0.98, 0.72 + hits * 0.06)
     return "unknown", 0.2
 
 
 def _lab_candidates(
-    text: str, document_hash: str, examination_date: str | None
+    text: str,
+    document_hash: str,
+    examination_date: str | None,
+    dates: dict[str, Any],
 ) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     number = r"[-+]?\d+(?:\.\d+)?"
     for line in text.splitlines():
         stripped = line.strip()
-        for normalized, aliases in LAB_ALIASES.items():
-            alias = next((item for item in aliases if item.lower() in stripped.lower()), None)
-            if not alias:
-                continue
-            tail = stripped[stripped.lower().find(alias.lower()) + len(alias) :]
-            values = list(re.finditer(number, tail))
-            if not values:
-                continue
+        matches = [
+            (normalized, alias, span)
+            for normalized, aliases in LAB_ALIASES.items()
+            for alias in aliases
+            if (span := _alias_span(stripped, alias)) is not None
+        ]
+        if not matches:
+            continue
+        normalized, alias, span = max(matches, key=lambda item: len(item[1]))
+        prefix = stripped[: span[0]]
+        tail = stripped[span[1] :]
+        prefix_value = re.search(rf"({number})$", prefix)
+        values = list(re.finditer(number, tail))
+        if prefix_value:
+            value = float(prefix_value.group(1))
+            range_search_text = tail
+        elif values:
             value = float(values[0].group())
-            range_match = re.search(rf"({number})\s*[-~–—]\s*({number})", tail[values[0].end() :])
-            unit_match = re.search(
-                r"(10\^?9/L|10\^?12/L|×10[⁹¹²]/L|U/L|IU/L|g/L|mg/L|mg/dL|"
-                r"µg/dL|mmol/L|µmol/L|umol/L|ng/mL|ng/L|pg/mL|mIU/L|µIU/mL|"
-                r"pmol/L|mL/min/1\.73m2|%|mm/h)",
+            range_search_text = tail[values[0].end() :]
+        else:
+            continue
+        range_match = re.search(
+            rf"({number})\s*[-~–—至到]\s*({number})", range_search_text
+        )
+        unit_match = re.search(
+                r"(10\^?9/L|10\^?12/L|x10\^?9/L|x10\^?12/L|×10[⁹¹²]/L|"
+                r"U/L|IU/L|g/L|mg/L|mg/dL|µg/dL|mmol/L|µmol/L|umol/L|ng/mL|"
+                r"ng/L|pg/mL|mIU/L|µIU/mL|pmol/L|mL/min/1\.73m2|%|mm/h|fL|pg|秒)",
                 tail,
                 re.IGNORECASE,
             )
-            flag = "high" if any(mark in stripped for mark in ("↑", " H", "高")) else None
-            if any(mark in stripped for mark in ("↓", " L", "低")):
-                flag = "low"
-            payload = {
-                "item_name": normalized,
-                "original_item_name": alias,
-                "value": value,
-                "unit": unit_match.group(1) if unit_match else None,
-                "reference_low": float(range_match.group(1)) if range_match else None,
-                "reference_high": float(range_match.group(2)) if range_match else None,
-                "abnormal_flag": flag,
-                "examination_date": examination_date,
-                "specimen_type": "血液" if "血" in text else None,
+        flag = (
+            "high"
+            if "↑" in tail or re.search(r"(?:^|\s)(?:H|高)(?:\s|$)", tail)
+            else "low"
+            if "↓" in tail or re.search(r"(?:^|\s)(?:L|低)(?:\s|$)", tail)
+            else None
+        )
+        payload = {
+            "item_name": normalized,
+            "original_item_name": alias,
+            "value": value,
+            "unit": unit_match.group(1) if unit_match else None,
+            "reference_low": float(range_match.group(1)) if range_match else None,
+            "reference_high": float(range_match.group(2)) if range_match else None,
+            "abnormal_flag": flag,
+            "examination_date": examination_date,
+            "collection_date": dates.get("collection_date"),
+            "received_date": dates.get("received_date"),
+            "report_date": dates.get("report_date"),
+            "specimen_type": "血液" if "血" in text else None,
+        }
+        offset = text.find(line)
+        confidence = 0.96 if unit_match and range_match and examination_date else 0.82
+        candidates.append(
+            {
+                "id": _candidate_id(document_hash, "laboratory_result", offset, payload),
+                "candidate_type": "laboratory_result",
+                "payload": payload,
+                "original_text": stripped,
+                "original_offset": offset,
+                "confidence": confidence,
             }
-            offset = text.find(line)
-            confidence = 0.96 if unit_match and range_match and examination_date else 0.82
-            candidates.append(
-                {
-                    "id": _candidate_id(document_hash, "laboratory_result", offset, payload),
-                    "candidate_type": "laboratory_result",
-                    "payload": payload,
-                    "original_text": stripped,
-                    "original_offset": offset,
-                    "confidence": confidence,
-                }
-            )
-            break
+        )
     return candidates
 
 
+def _clean_report_section(value: str | None) -> str | None:
+    if not value:
+        return None
+    value = re.split(r"\n\s*\n\s*\n", value, maxsplit=1)[0]
+    lines = []
+    for line in value.splitlines():
+        if any(
+            marker in line
+            for marker in ("病理编号", "检查者", "报告医生", "审核医生", "检查技师")
+        ):
+            break
+        stripped = line.strip()
+        if stripped:
+            lines.append(stripped)
+    return "\n".join(lines) or None
+
+
 def _imaging_candidates(
-    text: str, document_hash: str, report_type: str, examination_date: str | None
+    text: str,
+    document_hash: str,
+    report_type: str,
+    examination_date: str | None,
+    dates: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    modality = {"ct": "CT", "pet_ct": "PET/CT", "mri": "MRI", "ultrasound": "US"}.get(report_type)
+    modality = {
+        "ct": "CT",
+        "pet_ct": "PET/CT",
+        "mri": "MRI",
+        "ultrasound": "US",
+        "endoscopy": "ENDOSCOPY",
+    }.get(report_type)
     if modality is None:
         return []
     findings_match = re.search(
-        r"(?:检查所见|影像所见|超声所见|检查结果|所见)[:：]?\s*(.*?)"
-        r"(?=(?:诊断提示|超声提示|检查提示|诊断意见|印象|结论)[:：]|$)",
+        r"(?:检查所见|影像所见|超声所见|超声描述|内镜所见|检查结果|所见)"
+        r"[:：]?\s*(.*?)"
+        r"(?=(?:影像诊断|内镜诊断|诊断提示|超声提示|检查提示|诊断意见|印象|结论)"
+        r"[:：]|病理编号[:：]|$)",
         text,
         re.DOTALL,
     )
     impression_match = re.search(
-        r"(?:诊断提示|超声提示|检查提示|诊断意见|印象|结论)[:：]?\s*(.*)",
+        r"(?:影像诊断|内镜诊断|诊断提示|超声提示|检查提示|诊断意见|印象|结论)"
+        r"[:：]?\s*(.*?)(?=\n\s*(?:建议|建\s*议|病理编号|检查者|报告医生|审核医生|"
+        r"检查技师|第\s*\d+\s*页)[:：]?|$)",
         text,
         re.DOTALL,
     )
-    body = next((part for part in ("胸部", "颈部", "腹部", "头颅", "肺") if part in text), None)
+    body = next(
+        (
+            part
+            for part in ("鼻咽部", "上腹部", "鼻腔", "喉部", "胸部", "颈部", "腹部", "头颅", "肺")
+            if part in text
+        ),
+        None,
+    )
+    if body is None and report_type == "endoscopy":
+        body = "咽喉" if "喉镜" in text else "鼻腔" if "鼻内镜" in text else None
     relevant_sentences = [
         sentence.strip()
         for sentence in re.split(r"[。；;\n]+", text)
@@ -235,10 +367,12 @@ def _imaging_candidates(
             for structure in ("淋巴结", "甲状腺", "腮腺", "喉返神经", "肺", "结节")
         )
     ]
-    findings_text = findings_match.group(1).strip() if findings_match else None
+    findings_text = _clean_report_section(findings_match.group(1) if findings_match else None)
     if not findings_text and relevant_sentences:
         findings_text = "；".join(relevant_sentences)
-    impression_text = impression_match.group(1).strip() if impression_match else None
+    impression_text = _clean_report_section(
+        impression_match.group(1) if impression_match else None
+    )
     if not impression_text:
         impression_sentences = [
             sentence
@@ -271,10 +405,13 @@ def _imaging_candidates(
         )
     payload = {
         "examination_date": examination_date,
+        "report_date": dates.get("report_date"),
         "modality": modality,
         "body_region": body,
         "protocol": (
-            "CTA"
+            "diagnostic_endoscopy"
+            if report_type == "endoscopy"
+            else "CTA"
             if "CTA" in text.upper()
             else "enhanced"
             if "增强" in text
@@ -285,6 +422,23 @@ def _imaging_candidates(
         "findings_text": findings_text,
         "impression_text": impression_text,
         "aggregate_measurements": aggregate_measurements,
+        "endoscopy_type": (
+            "laryngoscopy"
+            if "喉镜" in text
+            else "nasal_endoscopy"
+            if "鼻内镜" in text
+            else None
+        ),
+        "endoscopy_scores": {
+            key: int(match.group(1))
+            for key, match in {
+                "RFS": re.search(r"RFS\s*[:：]\s*(\d+)\s*分", text, re.IGNORECASE),
+                "RSI": re.search(
+                    r"RSI(?:症状评分)?\s*[:：]\s*(\d+)\s*分", text, re.IGNORECASE
+                ),
+            }.items()
+            if match is not None
+        },
         "has_3d_reconstruction": any(word in text for word in ("三维重建", "3D重建", "VR")),
         "contains_dose_information": any(word in text for word in ("CTDIvol", "DLP")),
     }
@@ -556,12 +710,21 @@ def parse_medical_report(text: str, document_hash: str) -> ParsedReport:
             or dates["examination_date"]
             or fallback_date
         )
+    elif report_type == "laboratory":
+        examination_date = (
+            dates["examination_date"]
+            or dates["collection_date"]
+            or dates["report_date"]
+            or fallback_date
+        )
     else:
         examination_date = dates["examination_date"] or dates["report_date"] or fallback_date
     institution_match = re.search(r"^\s*([^\n]{2,40}(?:医院|医学中心|检验所))", text, re.MULTILINE)
     title = next((line.strip() for line in text.splitlines() if line.strip()), None)
-    candidates = _lab_candidates(text, document_hash, examination_date)
-    candidates.extend(_imaging_candidates(text, document_hash, report_type, examination_date))
+    candidates = _lab_candidates(text, document_hash, examination_date, dates)
+    candidates.extend(
+        _imaging_candidates(text, document_hash, report_type, examination_date, dates)
+    )
     candidates.extend(
         _procedure_candidate(
             text, document_hash, report_type, dates["procedure_date"] or examination_date

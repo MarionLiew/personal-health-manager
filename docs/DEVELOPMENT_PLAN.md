@@ -2,7 +2,7 @@
 
 Status date: 2026-07-15.
 
-Current release: `0.5.2`; current schema: `4`.
+Current release: `0.5.3`; current schema: `4`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -34,6 +34,11 @@ Report parser maintenance in 0.5.2 distinguishes ultrasound-guided biopsy proced
 supplements from imaging reports, preserves aggregate lymph-node measurement ranges without turning
 them into individual lesions, and supports audited reparse of saved sources. Reparse supersedes only
 pending candidates; confirmed and rejected decisions remain immutable.
+
+Parser version 4 in release 0.5.3 preserves PDF layout for laboratory tables, supports coagulation
+and expanded CBC fields, distinguishes diagnostic ENT endoscopy from blank pathology templates, and
+recognizes MR radiology reports with separate dates and report sections. Exact file duplicates are
+now reported during dry-run rather than only during confirmation.
 
 No unfinished feature is represented as production-ready. The implementation order prioritizes
 provenance, confirmation, audit, and safety before medical parsing or analysis.

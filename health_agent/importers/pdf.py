@@ -4,5 +4,11 @@ from pypdf import PdfReader
 
 
 def extract_text(path: Path) -> str:
-    pages = [page.extract_text() or "" for page in PdfReader(path).pages]
+    pages = []
+    for page in PdfReader(path).pages:
+        try:
+            extracted = page.extract_text(extraction_mode="layout")
+        except (TypeError, ValueError):
+            extracted = page.extract_text()
+        pages.append(extracted or "")
     return "\n".join(pages).strip()

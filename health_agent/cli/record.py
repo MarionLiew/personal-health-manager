@@ -34,7 +34,7 @@ from health_agent.safety.privacy import require_allowed_import_path
 
 app = typer.Typer(no_args_is_help=True)
 
-PARSER_VERSION = "3"
+PARSER_VERSION = "4"
 
 
 def _add_candidate(
@@ -99,6 +99,25 @@ def import_record(
             "duplicate": False,
         }
         if dry_run:
+            if settings.database_path.exists():
+                with session_scope() as session:
+                    existing = session.scalar(
+                        select(SourceDocument).where(SourceDocument.sha256 == preview.sha256)
+                    )
+                    if existing and not existing.revoked:
+                        existing_import = session.scalar(
+                            select(ImportSession)
+                            .where(ImportSession.source_document_id == existing.id)
+                            .where(ImportSession.status != "undone")
+                            .order_by(ImportSession.created_at.desc())
+                        )
+                        data.update(
+                            {
+                                "duplicate": True,
+                                "source_document_id": existing.id,
+                                "import_id": existing_import.id if existing_import else None,
+                            }
+                        )
             emit(
                 "record.import.preview",
                 data,

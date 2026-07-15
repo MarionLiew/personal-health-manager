@@ -40,6 +40,17 @@ def test_dry_run_does_not_write_formal_record_and_confirm_is_idempotent(isolated
         second_payload = json.loads(second.output)
         assert second_payload["data"]["duplicate"] is True
 
+        duplicate_preview = runner.invoke(
+            app, ["record", "import", str(path), "--dry-run", "--json"]
+        )
+        assert duplicate_preview.exit_code == 0, duplicate_preview.output
+        duplicate_preview_payload = json.loads(duplicate_preview.output)
+        assert duplicate_preview_payload["data"]["duplicate"] is True
+        assert (
+            duplicate_preview_payload["data"]["source_document_id"]
+            == first_payload["data"]["source_document_id"]
+        )
+
         engine = build_engine(isolated_env)
         with session_scope(engine) as session:
             assert session.scalar(select(func.count()).select_from(SourceDocument)) == 1

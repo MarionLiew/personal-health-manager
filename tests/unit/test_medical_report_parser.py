@@ -89,6 +89,8 @@ def test_supplemental_pathology_does_not_create_imaging_or_lesion_candidate() ->
         "examination_date": None,
         "procedure_date": None,
         "specimen_date": "2026-04-11",
+        "collection_date": None,
+        "received_date": None,
         "report_date": "2026-04-12",
         "supplement_date": "2026-04-18",
         "all_dates": ["2026-04-11", "2026-04-12", "2026-04-18"],
@@ -101,3 +103,84 @@ def test_supplemental_pathology_does_not_create_imaging_or_lesion_candidate() ->
     assert payload["immunohistochemistry"]["Ki-67"] == "20%"
     assert payload["specimen_date"] == "2026-04-11"
     assert payload["supplement_date"] == "2026-04-18"
+
+
+def test_layout_coagulation_report_extracts_six_results_and_dates() -> None:
+    text = (ROOT / "tests/fixtures/fictional_coagulation_layout.txt").read_text(
+        encoding="utf-8"
+    )
+
+    parsed = parse_medical_report(text, "f" * 64)
+
+    assert parsed.report_type == "laboratory"
+    assert parsed.dates["collection_date"] == "2026-05-06"
+    assert parsed.dates["received_date"] == "2026-05-06"
+    assert parsed.dates["report_date"] == "2026-05-06"
+    labs = [item for item in parsed.candidates if item["candidate_type"] == "laboratory_result"]
+    assert len(labs) == 6
+    assert {item["payload"]["item_name"] for item in labs} == {
+        "凝血酶原时间",
+        "凝血酶原活动度",
+        "国际标准化比值",
+        "活化部分凝血活酶时间",
+        "凝血酶时间",
+        "纤维蛋白原",
+    }
+
+
+def test_layout_cbc_uses_result_column_not_sequence_number() -> None:
+    text = (ROOT / "tests/fixtures/fictional_cbc_layout.txt").read_text(encoding="utf-8")
+
+    parsed = parse_medical_report(text, "1" * 64)
+    values = {
+        item["payload"]["item_name"]: item["payload"]["value"]
+        for item in parsed.candidates
+        if item["candidate_type"] == "laboratory_result"
+    }
+
+    assert parsed.report_type == "laboratory"
+    assert values["白细胞"] == 4.21
+    assert values["淋巴细胞绝对值"] == 1.27
+    assert values["红细胞"] == 5.02
+    assert values["血小板压积"] == 0.238
+    assert not [item for item in parsed.candidates if item["candidate_type"] == "imaging_report"]
+
+
+def test_endoscopy_blank_pathology_template_and_rsi_do_not_create_false_candidates() -> None:
+    text = (ROOT / "tests/fixtures/fictional_endoscopy_template.txt").read_text(
+        encoding="utf-8"
+    )
+
+    parsed = parse_medical_report(text, "2" * 64)
+
+    assert parsed.report_type == "endoscopy"
+    assert {item["candidate_type"] for item in parsed.candidates} == {"imaging_report"}
+    payload = parsed.candidates[0]["payload"]
+    assert payload["modality"] == "ENDOSCOPY"
+    assert payload["endoscopy_type"] == "laryngoscopy"
+    assert payload["endoscopy_scores"] == {"RFS": 4, "RSI": 5}
+    assert "病理编号" not in payload["findings_text"]
+
+
+def test_mr_abbreviation_is_mri_and_sections_and_dates_stay_distinct() -> None:
+    text = (ROOT / "tests/fixtures/fictional_mr_report.txt").read_text(encoding="utf-8")
+
+    parsed = parse_medical_report(text, "3" * 64)
+
+    assert parsed.report_type == "mri"
+    assert parsed.dates["examination_date"] == "2026-05-09"
+    assert parsed.dates["report_date"] == "2026-05-10"
+    payload = parsed.candidates[0]["payload"]
+    assert payload["body_region"] == "鼻咽部"
+    assert "未见明确占位" in payload["findings_text"]
+    assert payload["impression_text"] == "示例轻微改变，建议结合临床。"
+
+
+def test_short_lab_aliases_do_not_match_rsi_or_pct_as_ct() -> None:
+    parsed = parse_medical_report(
+        "虚构喉镜检查报告单 检查日期：2026-05-11\nRSI症状评分：7分。\n内镜诊断：示例。",
+        "4" * 64,
+    )
+
+    assert parsed.report_type == "endoscopy"
+    assert not [item for item in parsed.candidates if item["candidate_type"] == "laboratory_result"]

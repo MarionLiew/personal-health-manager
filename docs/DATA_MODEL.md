@@ -23,6 +23,7 @@ Parser-only upgrades do not require a database migration. `health record reparse
 the managed source path and SHA-256 before creating replacement candidates. Confirmation marks only
 obsolete `pending` candidates as `superseded`; `confirmed` and `rejected` candidates and their formal
 records are never rewritten. The operation records a `record.reparse` audit event and parser version.
+Parser version 4 adds only candidate payload fields and therefore keeps schema version 4 unchanged.
 
 Version 4 adds `PersonalCondition`, `ScarLesion`, `HPVLesion`, `TreatmentEvent`, `LesionImage`,
 `ImmuneContext`, `HealthTimelineEvent` and `RiskFactorProfile`. These are verified medical-management
