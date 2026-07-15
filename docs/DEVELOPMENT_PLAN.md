@@ -2,7 +2,7 @@
 
 Status date: 2026-07-14.
 
-Current release: `0.5.0`; current schema: `4`.
+Current release: `0.5.1`; current schema: `4`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.

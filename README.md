@@ -6,7 +6,8 @@ Hermes 只能调用 CLI，不能执行 SQL。
 
 ## 当前版本
 
-版本 `0.5.0` 已完成 Hermes v0.16/微信集成、CLI-only Skill 包装和只读影像列表，并保留
+版本 `0.5.1` 已完成 Hermes v0.16/微信集成、医疗附件自动 dry-run 路由、精确缓存目录白名单、
+CLI-only Skill 包装和只读影像列表，并保留
 数据库迁移 4 和 Personal Health Profile 长期管理层，以及 0.3.0 的
 症状时间轴、复查/复诊和预约管理、科室相关就诊摘要、
 病理与医生意见候选、Dose Screen 局部确认、普通 DICOM 剂量字段回退、扩充化验映射和

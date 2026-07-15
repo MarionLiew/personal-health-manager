@@ -1,5 +1,22 @@
 # WeChat interaction examples
 
+## Medical PDF attachments
+
+User sends one or several medical PDFs without text.
+
+1. Do not extract or summarize them with Python or a generic PDF/document tool.
+2. For each exact attachment path, run `health record import FILE --dry-run --json` once.
+3. Return one row per file: filename, parser, duplicate state, candidate count, uncertainties and
+   whether it is eligible for confirmation. Say “尚未保存” for every successful dry-run.
+4. If any command returns `UNSAFE_PATH` or another error, say “未导入”, include the error code and
+   stop repeating the same failing command. Never replace a failed import with a prose-only summary.
+5. Ask the user to confirm importing the successfully previewed files. Only then run the same
+   commands with `--confirm --json` and return `source_document_id` and `import_id` for each.
+6. The import confirmation preserves originals and creates candidates; it does not make candidates
+   formal medical facts. Show candidate IDs and ask which facts to confirm separately.
+
+Never say “原始 PDF 已保留” after only reading the files or after a dry-run/error.
+
 ## Read-only routing
 
 User: “查看我的健康概览”

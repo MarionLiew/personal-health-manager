@@ -1,6 +1,6 @@
 ---
 name: personal-health-manager
-description: Personal health-record assistant for WeChat. Use when the user asks for a health profile, condition or timeline; imaging or radiation history; laboratory trends; lesion comparison; symptom or follow-up management; visit preparation; or safe preview/confirmation of a health-record write. All access must go through the local health CLI wrapper.
+description: Personal health-record assistant for WeChat. Use whenever the user sends one or more health-related PDFs, reports, images, DICOM files, or other medical attachments, even without an accompanying instruction; and for health profiles, timelines, imaging or radiation history, laboratory trends, lesion comparison, symptoms, follow-ups, visit preparation, or safe health-record writes. All access must go through the local health CLI wrapper.
 metadata:
   hermes:
     tags: [health, medical-records, wechat, local-first]
@@ -25,8 +25,10 @@ results or work around the CLI.
 
 ## Handle every request
 
-1. Identify the intent and whether a file path is a Hermes attachment-cache path explicitly allowed
-   by project configuration. Do not search other directories.
+1. Treat a received medical attachment as an import request unless the user explicitly asks only to
+   read or summarize it. Use the exact attachment path supplied by Hermes; do not search directories.
+   Never parse a medical attachment with Python, a generic document Skill, or another tool before
+   the health CLI handles it.
 2. Invoke a read-only JSON command. For every write, including symptom/treatment additions, report
    imports and lesion changes, invoke `--dry-run --json` first. Summarize candidates, uncertainties,
    duplicate status and sources.
@@ -35,6 +37,16 @@ results or work around the CLI.
 4. Preserve the CLI's evidence types, uncertainty, warnings, action level and record IDs. Never turn
    `user_report` or `system_inference` into `source_fact` or `clinician_opinion`.
 5. Begin long WeChat responses with a short summary. Do not repeat large report bodies.
+
+For every PDF or ordinary report attachment, the first data action is
+`health.sh record import FILE --dry-run --json`. A dry-run does not save the original or any medical
+fact. If it fails, stop retrying the same operation, state the stable error code and say explicitly
+that the file was not imported. Never claim “已保留原始 PDF”, “已录入” or “已保存” unless a later
+`--confirm` response succeeds and returns `source_document_id` plus `import_id`.
+
+For multiple attachments, preview each once and report a per-file result. Ask whether to import the
+successfully previewed files. After confirmation, run the same files with `--confirm --json`, show
+their source/import IDs, then list candidate IDs and ask separately which medical facts to confirm.
 
 For candidate confirmation, show candidate ID, source text, field value, confidence and uncertainty.
 Allow the user to confirm or reject a subset. Never auto-confirm a low-confidence number, date,

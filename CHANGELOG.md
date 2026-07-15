@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.1 - 2026-07-15
+
+- Allow only the detected Hermes Weixin document-cache directory through a dedicated wrapper
+  configuration while continuing to reject the home directory and other over-broad roots.
+- Make medical attachments trigger `health record import --dry-run` before any parsing or summary,
+  and require per-file import status plus explicit confirmation.
+- Prevent Hermes from describing a dry-run or failed import as saved; failed imports now require the
+  stable error code and an explicit “not imported” response.
+- Move Skill backups outside Hermes' recursively scanned `skills` tree and verify that the active
+  copy, rather than a legacy backup, is the discoverable Skill.
+
 ## 0.5.0 - 2026-07-14
 
 - Integrate the `personal-health-manager` Skill with the detected Hermes v0.16 default profile and

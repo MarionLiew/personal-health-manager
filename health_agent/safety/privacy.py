@@ -10,8 +10,8 @@ def require_allowed_import_path(path: Path, settings: Settings) -> Path:
     resolved = path.expanduser().resolve(strict=True)
     if not any(resolved.is_relative_to(root) for root in settings.allowed_import_roots):
         raise UnsafePath(
-            "Import path is outside configured roots; copy the file into data/imports, "
-            "data/dicom, or data/apple_health first"
+            "Import path is outside configured roots; configure the exact attachment-cache root "
+            "or use an approved operator import directory"
         )
     if not resolved.is_file() and not resolved.is_dir():
         raise UnsafePath("Import target is neither a regular file nor directory")

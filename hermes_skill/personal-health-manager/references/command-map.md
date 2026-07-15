@@ -61,5 +61,9 @@ For a WeChat file, use only the exact local cache path supplied by Hermes and ac
 validation. A rejected path must be copied/approved through deployment configuration by the operator;
 do not broaden access yourself.
 
+Medical PDF routing is mandatory unless the user explicitly requests read-only summarization:
+`health record import FILE --dry-run --json`. Dry-run means “not saved”. A successful confirmed
+import must return both `source_document_id` and `import_id`; otherwise report “not imported”.
+
 The command spellings above describe the `health` CLI. Invoke them by replacing the `health` prefix
 with `${HERMES_HOME:-$HOME/.hermes}/skills/personal-health-manager/tools/health.sh`.

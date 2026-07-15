@@ -10,6 +10,7 @@ The deployment was inspected on 2026-07-14 before integration:
 - Active profile: `default`
 - Configuration: `/Users/marionliew/.hermes/config.yaml`, schema version 29
 - Local Skill root: `/Users/marionliew/.hermes/skills`
+- Weixin document cache: `/Users/marionliew/.hermes/cache/documents`
 - Gateway: launchd service `ai.hermes.gateway`
 - Weixin adapter: configured and loaded by the running gateway
 
@@ -30,7 +31,9 @@ Weixin message
   -> Weixin reply
 ```
 
-Hermes may call only the wrapper. The wrapper selects the project's installed `health` executable
+Hermes may call only the wrapper. The wrapper selects `config/hermes.yaml`, which adds only the
+detected Weixin document-cache directory to the normal project-local import roots. It then selects
+the project's installed `health` executable
 or runs it through `uv`; it contains no database path. Hermes must never execute SQL, inspect or edit
 `data/`, use chat memory as a medical fact, or bypass CLI validation and audit behavior.
 
@@ -50,6 +53,11 @@ If a different copy already exists, review it first, then update with a timestam
 ```bash
 ./hermes_skill/install.sh --update
 ```
+
+Backups are stored outside the scanned Skill tree at
+`~/.hermes/backups/personal-health-manager-skills`. Version 0.5.1 automatically moves the earlier
+`.personal-health-manager-backups` directory out of `~/.hermes/skills`; otherwise Hermes may load a
+backup copy instead of the active Skill.
 
 Hermes can re-scan without changing credentials or configuration. Send `/reload-skills` in the
 active Hermes chat or Weixin conversation. Restarting the installed gateway also creates a fresh
@@ -117,6 +125,29 @@ Hermes must never add `--confirm` itself. This applies to symptoms, treatments, 
 lesion changes, correction, undo, and restore. Low-confidence dates, numbers, units, laterality,
 pathology status, or Dose Screen values remain unconfirmed until the user selects them.
 
+### Medical PDF attachments
+
+Sending one or more medical PDFs without explanatory text is an import intent by default. Hermes
+must not use Python or a generic document Skill to extract the report first. For each exact cache
+path it calls:
+
+```bash
+~/.hermes/skills/personal-health-manager/tools/health.sh \
+  record import ATTACHMENT.pdf --dry-run --json
+```
+
+Hermes reports preview success or failure separately for every file. A successful dry-run is still
+“not saved”. After explicit user confirmation it repeats each successful file with `--confirm`, and
+only then may say that the original was preserved if the response contains both
+`source_document_id` and `import_id`. Extracted candidate facts require another explicit selection;
+importing the source does not silently promote them to formal medical facts.
+
+If the CLI returns `UNSAFE_PATH`, Hermes must stop retrying, show the error code, and state “未导入”.
+It must never fall back to a prose summary that implies the source entered the system.
+
+The deployment-specific cache permission is defined in `config/hermes.yaml`. Do not replace it with
+`~/.hermes`, the home directory, or another broad parent directory.
+
 ## Weixin reply behavior
 
 Long results begin with a short Chinese summary. Preserve the JSON envelope's warnings,
@@ -135,3 +166,11 @@ for the project environment. Import file access is limited to paths accepted by 
 configuration, including an explicitly configured Hermes attachment-cache directory. Do not grant
 Hermes broader home-directory access and do not add the database directory to its direct file
 allowlist.
+
+## Troubleshooting
+
+If Hermes can summarize a PDF but returns no `import_id`, inspect the CLI result rather than the
+summary. In the observed pre-0.5.1 failure, all seven dry-runs returned `UNSAFE_PATH` because the
+Weixin cache was outside the normal project roots; no file had entered the health database despite a
+reply claiming the originals were retained. Version 0.5.1 fixes the exact cache permission and makes
+that misleading fallback prohibited.

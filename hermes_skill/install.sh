@@ -6,6 +6,8 @@ SOURCE="$PROJECT_DIR/hermes_skill/personal-health-manager"
 HERMES_ROOT="${HERMES_HOME:-$HOME/.hermes}"
 TARGET_ROOT="$HERMES_ROOT/skills"
 TARGET="$TARGET_ROOT/personal-health-manager"
+BACKUP_ROOT="$HERMES_ROOT/backups/personal-health-manager-skills"
+LEGACY_BACKUP_ROOT="$TARGET_ROOT/.personal-health-manager-backups"
 UPDATE=false
 
 if [[ "${1:-}" == "--update" ]]; then
@@ -19,6 +21,12 @@ command -v hermes >/dev/null || { echo "Hermes CLI not found" >&2; exit 1; }
 test -f "$SOURCE/SKILL.md" || { echo "Skill source missing" >&2; exit 1; }
 test -x "$SOURCE/tools/health.sh" || { echo "health wrapper is missing or not executable" >&2; exit 1; }
 hermes skills list >/dev/null
+if [[ -d "$LEGACY_BACKUP_ROOT" ]]; then
+  mkdir -p "$BACKUP_ROOT"
+  LEGACY_TARGET="$BACKUP_ROOT/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
+  mv "$LEGACY_BACKUP_ROOT" "$LEGACY_TARGET"
+  echo "Moved legacy in-scan backups to $LEGACY_TARGET"
+fi
 if [[ -e "$TARGET" ]]; then
   if diff -qr "$SOURCE" "$TARGET" >/dev/null; then
     echo "personal-health-manager is already current at $TARGET"
@@ -29,7 +37,6 @@ if [[ -e "$TARGET" ]]; then
     echo "Re-run with --update to create a backup and replace it." >&2
     exit 2
   fi
-  BACKUP_ROOT="$TARGET_ROOT/.personal-health-manager-backups"
   BACKUP="$BACKUP_ROOT/$(date -u +%Y%m%dT%H%M%SZ)"
   mkdir -p "$BACKUP_ROOT"
   cp -R "$TARGET" "$BACKUP"

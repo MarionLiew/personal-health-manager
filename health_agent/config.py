@@ -17,6 +17,7 @@ class Settings:
     database_path: Path
     data_root: Path
     allowed_import_roots: tuple[Path, ...]
+    external_import_roots: tuple[Path, ...]
     max_import_bytes: int
     zip_max_files: int
     zip_max_uncompressed_bytes: int
@@ -43,12 +44,26 @@ def load_settings(path: str | Path | None = None) -> Settings:
             raise ConfigurationError(f"Configured path is outside project root: {resolved}")
         return resolved
 
+    def external_root(value: str) -> Path:
+        candidate = Path(value).expanduser()
+        if not candidate.is_absolute():
+            raise ConfigurationError("External import roots must be absolute paths")
+        resolved = candidate.resolve()
+        if Path.home().resolve().is_relative_to(resolved):
+            raise ConfigurationError("External import root is broader than permitted")
+        return resolved
+
     limits = raw.get("zip_limits", {})
+    internal_roots = tuple(under_root(p) for p in raw.get("allowed_import_roots", []))
+    external_roots = tuple(
+        external_root(p) for p in raw.get("allowed_external_import_roots", [])
+    )
     return Settings(
         root=root,
         database_path=under_root(db_override or raw["database_path"]),
         data_root=under_root(raw.get("data_root", "data")),
-        allowed_import_roots=tuple(under_root(p) for p in raw.get("allowed_import_roots", [])),
+        allowed_import_roots=internal_roots + external_roots,
+        external_import_roots=external_roots,
         max_import_bytes=int(raw.get("max_import_bytes", 1_073_741_824)),
         zip_max_files=int(limits.get("max_files", 10_000)),
         zip_max_uncompressed_bytes=int(limits.get("max_uncompressed_bytes", 2_147_483_648)),

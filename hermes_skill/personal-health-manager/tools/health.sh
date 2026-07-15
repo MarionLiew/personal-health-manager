@@ -9,6 +9,9 @@ if [[ ! -d "$PROJECT_DIR" ]]; then
   exit 127
 fi
 
+# Only the Hermes wrapper enables the exact, deployment-audited attachment cache.
+export HEALTH_AGENT_CONFIG="$PROJECT_DIR/config/hermes.yaml"
+
 if [[ -x "$PROJECT_DIR/.venv/bin/health" ]]; then
   exec "$PROJECT_DIR/.venv/bin/health" "$@"
 fi

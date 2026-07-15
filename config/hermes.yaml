@@ -1,0 +1,17 @@
+project_root: .
+database_path: data/database/health.sqlite3
+data_root: data
+allowed_import_roots:
+  - data/imports
+  - data/dicom
+  - data/apple_health
+allowed_external_import_roots:
+  # Exact directory used by the detected Hermes v0.16 Weixin document cache.
+  - /Users/marionliew/.hermes/cache/documents
+log_level: INFO
+default_patient_id: local-primary
+max_import_bytes: 1073741824
+zip_limits:
+  max_files: 10000
+  max_uncompressed_bytes: 2147483648
+  max_compression_ratio: 200

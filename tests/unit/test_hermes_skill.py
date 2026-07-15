@@ -8,6 +8,7 @@ def test_hermes_skill_is_cli_only_and_confirmation_gated() -> None:
     )
     assert "tools/health.sh <command> --json" in text
     assert 'exec uv run --project "$PROJECT_DIR" health "$@"' in wrapper
+    assert 'config/hermes.yaml' in wrapper
     assert "health.sqlite3" not in wrapper
     assert "/data/" not in wrapper
     assert "--dry-run --json" in text
@@ -33,3 +34,16 @@ def test_hermes_skill_has_required_weixin_routes_and_no_direct_data_access() -> 
     assert "Never auto-confirm" in skill
     assert "execute SQL" in skill
     assert "project's `data` directory" in skill
+    assert "health-related PDFs" in skill
+    assert "generic document Skill" in skill
+    assert "record import FILE --dry-run --json" in skill
+    assert "file was not imported" in skill
+    assert "source_document_id" in skill
+    assert "import_id" in skill
+    assert "UNSAFE_PATH" in examples
+    assert "Never say “原始 PDF 已保留”" in examples
+
+    installer = (ROOT / "hermes_skill/install.sh").read_text(encoding="utf-8")
+    verifier = (ROOT / "hermes_skill/verify.sh").read_text(encoding="utf-8")
+    assert '$HERMES_ROOT/backups/personal-health-manager-skills' in installer
+    assert "Hermes loaded a legacy backup" in verifier

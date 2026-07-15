@@ -10,6 +10,7 @@ WRAPPER="$SKILL/tools/health.sh"
 
 python3 "$VALIDATOR" "$SKILL"
 test -x "$WRAPPER" || { echo "health wrapper is not executable" >&2; exit 1; }
+test -f "$PROJECT_DIR/config/hermes.yaml"
 test -f "$SKILL/references/command-map.md"
 test -f "$SKILL/references/wechat-examples.md"
 
@@ -33,10 +34,22 @@ grep -q -- '--candidate-ids' "$SKILL/references/wechat-examples.md"
 grep -q 'Never run a database client' "$SKILL/SKILL.md"
 grep -q '查看我的健康概览' "$SKILL/references/wechat-examples.md"
 grep -q 'visit-summary --department 耳鼻喉科 --json' "$SKILL/references/wechat-examples.md"
+grep -q 'UNSAFE_PATH' "$SKILL/references/wechat-examples.md"
+grep -q 'config/hermes.yaml' "$WRAPPER"
+grep -q '/Users/marionliew/.hermes/cache/documents' "$PROJECT_DIR/config/hermes.yaml"
 
 if [[ -d "$INSTALLED" ]]; then
-  skills_list="$(hermes skills list)"
+  skills_list="$(COLUMNS=240 hermes skills list)"
   grep -q 'personal-health-manager' <<<"$skills_list"
+  skill_line="$(grep 'personal-health-manager' <<<"$skills_list")"
+  if [[ "$skill_line" == *'.personal-health-manager-backups'* ]]; then
+    echo "Hermes loaded a legacy backup instead of the active Skill" >&2
+    exit 1
+  fi
+  if ! diff -qr "$SKILL" "$INSTALLED" >/dev/null; then
+    echo "Installed Hermes Skill is out of date; run ./hermes_skill/install.sh --update" >&2
+    exit 1
+  fi
   echo "Installed Hermes Skill is discoverable: $INSTALLED"
 else
   echo "Source Skill verified; install it to verify Hermes discovery."
