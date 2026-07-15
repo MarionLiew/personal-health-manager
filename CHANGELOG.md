@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.5 - 2026-07-15
+
+- Parse two-dimensional representative measurements for multiple bilateral or regional lymph nodes
+  without creating a false individually trackable lesion.
+- Add explicit `--ocr` report import/reparse using the local macOS Vision framework for scanned PDFs;
+  no report image or text is sent to an external service.
+- Cap OCR-derived candidate confidence, label OCR provenance in every payload, and require explicit
+  review of dates, numbers, decimals, units, laterality, locations and signs.
+- Keep OCR disabled by default and update the Hermes Skill to ask before local OCR and retain the
+  separate reparse and candidate-confirmation gates.
+
 ## 0.5.4 - 2026-07-15
 
 - Preserve pathology immunohistochemistry qualifiers: `部分+` is now

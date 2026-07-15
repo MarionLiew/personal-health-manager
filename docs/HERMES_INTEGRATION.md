@@ -146,6 +146,22 @@ The dry-run `duplicate` field is an exact SHA-256 lookup. When it is true, Herme
 existing `source_document_id` and `import_id` and must not describe the attachment as a new source.
 Similar-looking reports with different hashes remain review warnings rather than automatic matches.
 
+### Scanned PDF OCR
+
+OCR is disabled by default. If a PDF has no extractable text, Hermes says that no fields were guessed
+and asks whether to use local OCR. After explicit approval it calls:
+
+```bash
+~/.hermes/skills/personal-health-manager/tools/health.sh \
+  record reparse SOURCE_DOCUMENT_ID --ocr --dry-run --json
+```
+
+For an unsaved cache attachment, use `record import FILE --ocr --dry-run --json` instead. The macOS
+Vision engine runs locally and sends no file or text to an external OCR service. Every OCR-derived
+candidate is capped at low confidence and carries OCR provenance. Hermes must display and obtain
+review of every date, number, decimal, unit, laterality, location and sign before reparse
+confirmation; formal candidate confirmation remains a separate later action.
+
 ### Reparse an already saved report
 
 If the original was saved but its pending candidates were parsed incorrectly, Hermes first runs:

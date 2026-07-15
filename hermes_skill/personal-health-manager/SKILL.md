@@ -63,6 +63,14 @@ uncertainties, pending IDs that would be superseded and protected decisions. Run
 with `--confirm --json` only after explicit approval of that preview. Reparse does not confirm the
 new candidates; do not bypass the subsequent partial candidate-confirmation step.
 
+If a PDF preview says it has no extractable text, do not infer facts from a generic vision tool.
+Ask whether to run local OCR. Only after explicit approval use
+`health.sh record reparse SOURCE_DOCUMENT_ID --ocr --dry-run --json` for a saved source, or
+`health.sh record import FILE --ocr --dry-run --json` for an unsaved attachment. State that OCR is
+local, cap-derived candidates remain low-confidence, and require the user to verify every date,
+number, decimal point, unit, laterality, location and sign. Never confirm an OCR candidate merely
+because the overall OCR confidence is high.
+
 Read [references/command-map.md](references/command-map.md) when selecting a command. Do not infer a
 command from memory if it is absent there; check `health --help` and the relevant group help.
 Read [references/wechat-examples.md](references/wechat-examples.md) for mutation and partial-

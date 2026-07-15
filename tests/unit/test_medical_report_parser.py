@@ -53,6 +53,37 @@ def test_ultrasound_multiple_lymph_node_range_is_not_an_individual_lesion() -> N
     assert "考虑反应性" in imaging["payload"]["impression_text"]
 
 
+def test_bilateral_nodes_with_two_dimensions_are_a_representative_aggregate() -> None:
+    text = """虚构医院超声报告
+报告日期：2026-06-12
+检查所见：双侧颈部II区可见增大淋巴结回声，较大者约17x8mm，边界清。
+诊断意见：双侧颈部淋巴结增大。
+"""
+
+    parsed = parse_medical_report(text, "6" * 64)
+
+    assert parsed.report_type == "ultrasound"
+    assert not [item for item in parsed.candidates if item["candidate_type"] == "lesion"]
+    imaging = next(
+        item for item in parsed.candidates if item["candidate_type"] == "imaging_report"
+    )
+    assert imaging["payload"]["aggregate_measurements"] == [
+        {
+            "structure": "颈部淋巴结",
+            "dimensions": [
+                {"axis": "long", "value": 17.0},
+                {"axis": "short", "value": 8.0},
+            ],
+            "unit": "mm",
+            "scope": "multiple_bilateral_nodes",
+            "anatomical_location": "颈部",
+            "anatomical_level": "II",
+            "representative_largest": True,
+            "individual_lesion_trackable": False,
+        }
+    ]
+
+
 def test_ultrasound_guided_core_biopsy_is_a_procedure_not_imaging_report() -> None:
     text = """虚构介入超声操作记录
 操作日期：2026-04-11

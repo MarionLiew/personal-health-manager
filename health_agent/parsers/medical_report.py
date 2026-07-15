@@ -328,7 +328,15 @@ def _clean_report_section(value: str | None) -> str | None:
     for line in value.splitlines():
         if any(
             marker in line
-            for marker in ("病理编号", "检查者", "报告医生", "审核医生", "检查技师")
+            for marker in (
+                "病理编号",
+                "记录员",
+                "医生姓名",
+                "检查者",
+                "报告医生",
+                "审核医生",
+                "检查技师",
+            )
         ):
             break
         stripped = line.strip()
@@ -423,6 +431,37 @@ def _imaging_candidates(
                 "individual_lesion_trackable": False,
             }
         )
+    representative_node_pattern = re.compile(
+        r"(?P<context>(?:(?:双侧|两侧)[^。；\n]{0,20}|(?:颏下|颌下)[^。；\n]{0,20})"
+        r"(?:多个|数个|多发|增大)?[^。；\n]{0,15}淋巴结[^。；\n]{0,45}?)"
+        r"(?:较大者?|最大者?)?\s*(?:约)?(?P<long>\d+(?:\.\d+)?)\s*"
+        r"[xX×*]\s*(?P<short>\d+(?:\.\d+)?)\s*(?P<unit>mm|cm)",
+        re.IGNORECASE,
+    )
+    representative_nodes = list(representative_node_pattern.finditer(text))
+    for match in representative_nodes:
+        context = match.group("context")
+        level_match = re.search(r"([ⅠⅡⅢⅣⅤⅥIVX]+)区", context)
+        location = "颏下" if "颏下" in context else "颌下" if "颌下" in context else "颈部"
+        aggregate_measurements.append(
+            {
+                "structure": "颈部淋巴结",
+                "dimensions": [
+                    {"axis": "long", "value": float(match.group("long"))},
+                    {"axis": "short", "value": float(match.group("short"))},
+                ],
+                "unit": match.group("unit").lower(),
+                "scope": (
+                    "multiple_bilateral_nodes"
+                    if any(marker in context for marker in ("双侧", "两侧"))
+                    else "multiple_nodes"
+                ),
+                "anatomical_location": location,
+                "anatomical_level": level_match.group(1) if level_match else None,
+                "representative_largest": True,
+                "individual_lesion_trackable": False,
+            }
+        )
     payload = {
         "examination_date": examination_date,
         "report_date": dates.get("report_date"),
@@ -483,6 +522,11 @@ def _imaging_candidates(
         if match.group("nature") == "淋巴结" and any(
             range_match.start() <= match.start() <= range_match.end()
             for range_match in lymph_ranges
+        ):
+            continue
+        if match.group("nature") == "淋巴结" and any(
+            node_match.start() <= match.start() <= node_match.end()
+            for node_match in representative_nodes
         ):
             continue
         prefix = text[max(0, match.start() - 40) : match.start()]

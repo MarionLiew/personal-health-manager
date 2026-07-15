@@ -59,6 +59,9 @@ Mutation gate examples:
 - Reparsing a saved source first uses `record reparse SOURCE_DOCUMENT_ID --dry-run --json`. Show the
   replacements and pending candidates to be superseded, then use `--confirm` only after explicit
   approval. Reparse never confirms medical facts and never changes confirmed/rejected candidates.
+- For a scanned PDF only after explicit OCR approval, add `--ocr` to the import or reparse dry-run.
+  Show all OCR uncertainties and require field-by-field review. Do not use external OCR, generic
+  vision tools, or `--confirm` until the user has approved that exact preview.
 
 For a WeChat file, use only the exact local cache path supplied by Hermes and accepted by CLI path
 validation. A rejected path must be copied/approved through deployment configuration by the operator;

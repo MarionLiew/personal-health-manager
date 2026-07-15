@@ -27,6 +27,12 @@ candidates and IDs that would be superseded, and ask for confirmation. After exp
 the same command with `--confirm --json`; state clearly that the new candidates are still unconfirmed
 medical facts until the user selects candidate IDs.
 
+If a PDF returns “no extractable text”, say that no fields were guessed and ask whether to use local
+OCR. After approval, run `health record reparse SOURCE_DOCUMENT_ID --ocr --dry-run --json` for a
+saved source. Display the OCR engine, confidence, extracted source text, candidate IDs and every
+uncertain date/number/unit/side/location. A user must verify those fields before reparse confirmation,
+and must later select candidate IDs before any medical fact becomes formal.
+
 ## Read-only routing
 
 User: “查看我的健康概览”

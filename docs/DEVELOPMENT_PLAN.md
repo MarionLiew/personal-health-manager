@@ -2,7 +2,7 @@
 
 Status date: 2026-07-15.
 
-Current release: `0.5.4`; current schema: `4`.
+Current release: `0.5.5`; current schema: `4`.
 
 - Phase 0 — complete: environment audit, isolated Git repository, disk/tool/Hermes discovery, safe
   ignore rules.
@@ -20,8 +20,9 @@ Current release: `0.5.4`; current schema: `4`.
 - Phase 7 — complete for v0.3 scope: unit/integration/end-to-end daily management, DICOM, Dose Screen,
   migration, JSON error, encrypted backup and Hermes validation tests exist.
 
-Known limitations: image OCR requires a locally installed Tesseract executable; this host can parse
-supplied local OCR text but cannot render DICOM pixels for OCR. Follow-up recurrence automation and
+Known limitations: general scanned-PDF OCR is available only through explicit local macOS Vision
+preview and still requires field-by-field confirmation. DICOM Dose Screen image OCR continues to
+require Tesseract or supplied local OCR text. Follow-up recurrence automation and
 external reminder delivery are inactive. Department relevance uses deterministic terminology and
 requires user review. Apple Health and lifestyle modules remain deferred.
 
@@ -43,6 +44,9 @@ now reported during dry-run rather than only during confirmation.
 Parser version 5 in release 0.5.4 preserves partial immunohistochemistry positivity, approximate
 Ki-67 expressions, multiple pathology recommendations, supplement dates and the explicit boundary
 between submitted tissue-fragment size and lesion size.
+
+Parser version 6 in release 0.5.5 adds representative two-axis measurements for multiple lymph
+nodes and an opt-in, local-only scanned-PDF OCR path with capped candidate confidence.
 
 No unfinished feature is represented as production-ready. The implementation order prioritizes
 provenance, confirmation, audit, and safety before medical parsing or analysis.

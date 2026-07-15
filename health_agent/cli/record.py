@@ -34,7 +34,7 @@ from health_agent.safety.privacy import require_allowed_import_path
 
 app = typer.Typer(no_args_is_help=True)
 
-PARSER_VERSION = "5"
+PARSER_VERSION = "6"
 
 
 def _add_candidate(
@@ -77,6 +77,7 @@ def import_record(
     file: Path,
     dry_run: bool = typer.Option(False, "--dry-run"),
     confirm: bool = typer.Option(False, "--confirm"),
+    ocr: bool = typer.Option(False, "--ocr", help="Use local OCR for a scanned PDF."),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Preview or confirm a general report import."""
@@ -87,7 +88,7 @@ def import_record(
         path = require_allowed_import_path(file, settings)
         if not path.is_file():
             raise ValueError("General report import requires a file")
-        preview = preview_report(path, settings.max_import_bytes)
+        preview = preview_report(path, settings.max_import_bytes, allow_ocr=ocr)
         data = {
             "sha256": preview.sha256,
             "filename": preview.filename,
@@ -97,6 +98,7 @@ def import_record(
             "candidates": preview.candidates,
             "text_preview": preview.text[:1000] if preview.text else None,
             "duplicate": False,
+            "ocr_requested": ocr,
         }
         if dry_run:
             if settings.database_path.exists():
@@ -254,6 +256,7 @@ def reparse_record(
     record_id: str,
     dry_run: bool = typer.Option(False, "--dry-run"),
     confirm: bool = typer.Option(False, "--confirm"),
+    ocr: bool = typer.Option(False, "--ocr", help="Use local OCR for a scanned PDF."),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Re-run the current parser for a saved source without confirming medical facts."""
@@ -269,7 +272,7 @@ def reparse_record(
             source_path = Path(source.local_path).resolve(strict=True)
             if not source_path.is_relative_to(settings.data_root.resolve()):
                 raise ValueError("Saved source path is outside the managed data root")
-            preview = preview_report(source_path, settings.max_import_bytes)
+            preview = preview_report(source_path, settings.max_import_bytes, allow_ocr=ocr)
             if preview.sha256 != source.sha256:
                 raise ValueError("Saved source integrity check failed")
             import_session = session.scalar(
@@ -306,6 +309,7 @@ def reparse_record(
                 "candidates": items,
                 "pending_candidate_ids_to_supersede": pending_to_supersede,
                 "protected_candidate_ids": protected,
+                "ocr_requested": ocr,
             }
             if dry_run:
                 emit(
