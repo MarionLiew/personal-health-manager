@@ -44,6 +44,23 @@ results or work around the CLI.
    `user_report` or `system_inference` into `source_fact` or `clinician_opinion`.
 5. Begin long WeChat responses with a short summary. Do not repeat large report bodies.
 
+## Formal lesion records and clinical bundles
+
+Lesions have formal records with `display_code`, evidence-typed source links and per-measurement
+provenance. Write actions (`create`, `update`, `link-source`, `unlink`, `add-measurement`) follow the
+same preview/confirm gate as every other mutation; see
+[references/command-map.md](references/command-map.md) for exact spellings. When linking a source,
+the verbatim `--original-text` quote is mandatory for report-backed evidence and page/offset anchors
+must be real locations in the document — never invent a location. Bilateral group text stays at
+group scope; never attach it to a single lesion as a confirmed individual measurement.
+
+To hand materials to a doctor or to GPT, use the preview/confirm-gated clinical exports
+(`export lesion-bundle`, `export visit-bundle`, `export record-index`, `export case-bundle`). They
+produce local redacted files that keep verbatim quotes, evidence types and status values exactly as
+stored — do not rephrase them. Case ZIPs contain checksum-verified originals; never re-derive,
+retype or "correct" a quoted measurement from memory. The resulting files stay local; uploading them
+is always an explicit, separate user action.
+
 For every PDF or ordinary report attachment, the first data action is
 `health.sh record import FILE --dry-run --json`. A dry-run does not save the original or any medical
 fact. If it fails, stop retrying the same operation, state the stable error code and say explicitly
