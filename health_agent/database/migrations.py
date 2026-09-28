@@ -16,6 +16,8 @@ from health_agent.database.models import (
     HPVLesion,
     ImmuneContext,
     LesionImage,
+    LesionObservation,
+    LesionSourceLink,
     PathologyCandidate,
     PersonalCondition,
     RecordCandidate,
@@ -28,7 +30,7 @@ from health_agent.database.models import (
 from health_agent.database.session import build_engine
 from health_agent.errors import ConfirmationRequired
 
-LATEST_SCHEMA_VERSION = 6
+LATEST_SCHEMA_VERSION = 7
 SCHEMA_VERSION = LATEST_SCHEMA_VERSION
 
 
@@ -60,6 +62,7 @@ def _migration_1(connection: Connection) -> None:
         HealthTimelineEvent.__table__,
         RiskFactorProfile.__table__,
     }
+    future_tables.update({LesionObservation.__table__, LesionSourceLink.__table__})
     tables = [table for table in Base.metadata.sorted_tables if table not in future_tables]
     Base.metadata.create_all(connection, tables=tables)
     # These three entities existed in schema v1 as provenance-only records. Keep that
@@ -234,6 +237,16 @@ def _migration_6(connection: Connection) -> None:
     )
 
 
+def _migration_7(connection: Connection) -> None:
+    LesionSourceLink.__table__.create(connection, checkfirst=True)
+    LesionObservation.__table__.create(connection, checkfirst=True)
+    connection.exec_driver_sql(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_lesions_display_code "
+        "ON lesions(json_extract(details, '$.display_code')) "
+        "WHERE json_extract(details, '$.display_code') IS NOT NULL"
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "initial_schema", _migration_1),
     Migration(2, "record_candidates", _migration_2),
@@ -241,6 +254,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(4, "personal_health_profile", _migration_4),
     Migration(5, "source_document_institution", _migration_5),
     Migration(6, "verified_source_institution", _migration_6),
+    Migration(7, "formal_lesion_links", _migration_7),
 )
 
 

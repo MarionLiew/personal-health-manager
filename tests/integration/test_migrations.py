@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import Connection, inspect, text
 
 from health_agent.database.migrations import (
+    LATEST_SCHEMA_VERSION,
     MIGRATIONS,
     Migration,
     current_version,
@@ -17,10 +18,11 @@ from health_agent.database.session import build_engine
 
 
 def test_empty_database_upgrades_through_every_version(isolated_env: Path) -> None:
+    every_version = list(range(1, LATEST_SCHEMA_VERSION + 1))
     engine = build_engine(isolated_env)
-    assert [item.version for item in pending_migrations(engine)] == [1, 2, 3, 4, 5, 6]
-    assert upgrade(engine) == [1, 2, 3, 4, 5, 6]
-    assert current_version(engine) == 6
+    assert [item.version for item in pending_migrations(engine)] == every_version
+    assert upgrade(engine) == every_version
+    assert current_version(engine) == LATEST_SCHEMA_VERSION
     assert verify_database(engine)["valid"] is True
 
 
@@ -36,7 +38,7 @@ def test_version_one_upgrades_through_three_and_preserves_records(isolated_env: 
             )
         )
     backup = isolated_env.parent / "v1-backup.sqlite3"
-    assert upgrade(engine, backup_path=backup) == [2, 3, 4, 5, 6]
+    assert upgrade(engine, backup_path=backup) == list(range(2, LATEST_SCHEMA_VERSION + 1))
     assert "record_candidates" in inspect(engine).get_table_names()
     with engine.connect() as connection:
         assert (
@@ -63,7 +65,7 @@ def test_version_two_upgrades_to_three_and_preserves_v2_records(isolated_env: Pa
             {"details": '{"legacy":true}'},
         )
     backup = isolated_env.parent / "v2-backup.sqlite3"
-    assert upgrade(engine, backup_path=backup) == [3, 4, 5, 6]
+    assert upgrade(engine, backup_path=backup) == list(range(3, LATEST_SCHEMA_VERSION + 1))
     inspector = inspect(engine)
     assert "symptom_observations" in inspector.get_table_names()
     assert "normalized_symptom_name" in {
@@ -95,7 +97,7 @@ def test_version_three_upgrades_to_profile_schema_and_preserves_records(
             )
         )
     backup = isolated_env.parent / "v3-backup.sqlite3"
-    assert upgrade(engine, backup_path=backup) == [4, 5, 6]
+    assert upgrade(engine, backup_path=backup) == list(range(4, LATEST_SCHEMA_VERSION + 1))
     assert "personal_conditions" in inspect(engine).get_table_names()
     with engine.connect() as connection:
         assert (
@@ -136,14 +138,17 @@ def test_version_four_adds_source_institution_and_preserves_documents(
         )
     backup = isolated_env.parent / "v4-backup.sqlite3"
 
-    assert upgrade(engine, backup_path=backup) == [5, 6]
+    assert upgrade(engine, backup_path=backup) == [5, 6, 7]
     assert "institution" in {
         column["name"] for column in inspect(engine).get_columns("source_documents")
     }
     with engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT original_filename FROM source_documents WHERE id='fictional-source'")
-        ).scalar() == "fictional.pdf"
+        assert (
+            connection.execute(
+                text("SELECT original_filename FROM source_documents WHERE id='fictional-source'")
+            ).scalar()
+            == "fictional.pdf"
+        )
 
 
 def test_version_five_adds_verified_institution_provenance_and_preserves_value(
@@ -168,7 +173,7 @@ def test_version_five_adds_verified_institution_provenance_and_preserves_value(
             {"sha256": "e" * 64},
         )
 
-    assert upgrade(engine, backup_path=isolated_env.parent / "v5-backup.sqlite3") == [6]
+    assert upgrade(engine, backup_path=isolated_env.parent / "v5-backup.sqlite3") == [6, 7]
     columns = {column["name"] for column in inspect(engine).get_columns("source_documents")}
     assert {"institution_verified", "institution_source_type", "institution_updated_at"} <= columns
     with engine.connect() as connection:
@@ -193,9 +198,12 @@ def test_failed_migration_restores_database_and_version(isolated_env: Path) -> N
     with pytest.raises(RuntimeError, match="fictional migration failure"):
         upgrade(
             engine,
-            migrations=(*MIGRATIONS, Migration(7, "fictional_failure", fail)),
+            migrations=(
+                *MIGRATIONS,
+                Migration(LATEST_SCHEMA_VERSION + 1, "fictional_failure", fail),
+            ),
             backup_path=backup,
         )
     replacement = build_engine(isolated_env)
-    assert current_version(replacement) == 6
+    assert current_version(replacement) == LATEST_SCHEMA_VERSION
     assert "should_not_survive" not in inspect(replacement).get_table_names()

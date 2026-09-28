@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "personal-health-agent"
-version = "0.6.1"
+version = "0.7.0"
 description = "Local-first personal health risk management and clinical visit assistant"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "Private"}
+license = {text = "MIT"}
 authors = [{name = "personal-health-agent maintainers"}]
 dependencies = [
   "alembic>=1.14,<2",

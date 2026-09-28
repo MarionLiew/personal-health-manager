@@ -170,6 +170,46 @@ ImagingSeries = make_record_model("ImagingSeries", "imaging_series")
 ImagingReport = make_record_model("ImagingReport", "imaging_reports")
 Lesion = make_record_model("Lesion", "lesions")
 LesionMeasurement = make_record_model("LesionMeasurement", "lesion_measurements")
+
+
+class LesionSourceLink(Base):
+    __tablename__ = "lesion_source_links"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    lesion_id: Mapped[str] = mapped_column(String(36), ForeignKey("lesions.id"), index=True)
+    source_document_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("source_documents.id"), index=True
+    )
+    import_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    report_record_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    evidence_type: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32))
+    scope: Mapped[str] = mapped_column(String(32), default="individual")
+    original_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    original_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    examination_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    examination_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    unlinked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class LesionObservation(Base):
+    __tablename__ = "lesion_observations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    lesion_id: Mapped[str] = mapped_column(String(36), ForeignKey("lesions.id"), index=True)
+    source_document_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("source_documents.id"), index=True
+    )
+    size: Mapped[float] = mapped_column(Float)
+    unit: Mapped[str] = mapped_column(String(32))
+    laterality: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    original_text: Mapped[str] = mapped_column(Text)
+    evidence_type: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32))
+    examination_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+
+
 Diagnosis = make_record_model("Diagnosis", "diagnoses")
 Procedure = make_record_model("Procedure", "procedures")
 Treatment = make_record_model("Treatment", "treatments")

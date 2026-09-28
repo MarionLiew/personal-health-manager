@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from typer.testing import CliRunner
 
 from health_agent.cli.main import app
+from health_agent.database.migrations import SCHEMA_VERSION
 from health_agent.database.models import LaboratoryResult, RecordCandidate
 from health_agent.database.session import build_engine, session_scope
 from health_agent.services.backup import create_backup, read_backup
@@ -129,7 +130,7 @@ def test_complete_fictional_medical_and_dose_flow(isolated_env: Path) -> None:
         key = Fernet.generate_key().decode()
         backup = create_backup(isolated_env, isolated_env.parent, key)
         manifest, _ = read_backup(backup, key)
-        assert manifest["schema_version"] == 6
+        assert manifest["schema_version"] == SCHEMA_VERSION
     finally:
         for path in paths:
             path.unlink(missing_ok=True)

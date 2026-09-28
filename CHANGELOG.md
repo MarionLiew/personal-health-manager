@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0 - 2026-09-28
+
+- Add schema migration 7 (`lesion_source_links`, `lesion_observations`): formal lesion tracking
+  with immutable UUID + display code, evidence-typed source links and measurements, bilateral
+  group descriptions kept at group scope, pre-upgrade backups and audit events.
+- Add `health lesions create/update/link-source/unlink/add-measurement/history` with
+  preview/confirm gating; user-confirmed correspondence stays `user_report`, never a report fact.
+- Add `health export lesion-bundle/visit-bundle/record-index/case-bundle`: evidence chains with
+  verbatim quotes separated from system summaries, path-safe ZIP of originals with checksum
+  verification, department-filtered visit packs and a full-case index.
+- Reissue the repository as the open-source `personal-health-manager` Skill packaging under MIT.
+
 ## 0.6.1 - 2026-07-15
 
 - Add schema migration 6 and `health record institution-set` so a source hospital can be previewed,

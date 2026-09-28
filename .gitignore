@@ -11,6 +11,33 @@ build/
 dist/
 
 # Real health data and runtime state must never enter Git.
+# NOTE: config/hermes.yaml is already tracked; ignore does not untrack history.
+/config/hermes.yaml
+.env.*
+!.env.example
+*.pdf
+*.PDF
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.dcm
+*.dicom
+*.p12
+*.pfx
+*.key
+*.pem
+*.zip
+*.7z
+*.tar.gz
+*.heic
+*.nii
+*.nii.gz
+*.nrrd
+*.xml
+!uv.lock
 data/database/*
 data/reports/*
 data/imports/*
@@ -21,16 +48,9 @@ data/backups/*
 data/quarantine/*
 !data/**/.gitkeep
 data/
-*.sqlite3
-*.sqlite3-*
-*.db
-*.dcm
-*.dicom
 export.xml
 
 # Local secrets and generated artifacts.
-*.key
-*.pem
 coverage.xml
 .coverage
 htmlcov/

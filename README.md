@@ -1,121 +1,56 @@
-# personal-health-agent
+# 个人医疗证据管理（personal-health-manager）
 
-本地优先的个人健康档案、趋势管理、辐射剂量账本与就医沟通辅助系统。它不提供自动诊断、
-处方、检查医嘱、急救或个人癌症概率。所有正式数据通过 `health` CLI 进入本地 SQLite；
-Hermes 只能调用 CLI，不能执行 SQL。
-
-## 当前版本
-
-版本 `0.6.1` 增加医院字段的独立预览/确认和审计，人工确认的医院不会被后续OCR覆盖；
-胸部CT病灶可保留二维尺寸、左右侧、肺叶/肺段、序列和图像范围，并避免诊断段重复提取。
-同时保留0.6.0供GPT分析的本地脱敏JSON导出及禁止自动上传规则、结构化医院来源字段、
-扫描PDF的显式本地Vision OCR预览，以及双侧/多个淋巴结二维代表测量，
-OCR默认关闭且所有字段必须人工确认；同时继承0.5.4对病理免疫组化“部分+”、Ki-67约数、补充报告日期、全部建议及
-送检碎组织尺寸边界；同时继承0.5.3的PDF布局保留解析、凝血与扩展血常规、喉镜/鼻内镜
-和MR报告支持，修复
-表格序号错作检验结果、`PCT`误作CT及`RSI`误作血清铁，并让dry-run按SHA检查重复；同时
-保留颈部报告修复和经过 dry-run/confirm 门控的安全重解析，以及Hermes v0.16/微信集成、
-精确缓存目录白名单、
-CLI-only Skill 包装和只读影像列表，以及
-数据库迁移 4 和 Personal Health Profile 长期管理层，以及 0.3.0 的
-症状时间轴、复查/复诊和预约管理、科室相关就诊摘要、
-病理与医生意见候选、Dose Screen 局部确认、普通 DICOM 剂量字段回退、扩充化验映射和
-统一 JSON 错误。Apple Health 和生活方式模块仍未实现。详见
-[开发计划](docs/DEVELOPMENT_PLAN.md)。
-
-## 安装与初始化
+把本地检查报告整理成可核对的记录，带着证据去问医生，而不是让 AI 替医生下结论。
 
 ```bash
-cd /Users/marionliew/personal-health-agent
-uv sync --extra test --extra backup
+uv sync --extra test
 uv run health init --json
 uv run health doctor --json
+uv run health visit-summary --department 耳鼻喉科 --json
+```
+
+报告、病灶测量、症状与复诊提醒留在本地 SQLite；导入的解析结果先预览，再由人确认。问诊摘要帮助梳理已有资料和待问的问题，但不替代原报告或临床判断。当前仓库的 Python 包和命令仍叫 `personal-health-agent` / `health`；Hermes Skill 叫 `personal-health-manager`。
+
+## 本地运行
+
+需要 Python 3.11+ 和 [uv](https://docs.astral.sh/uv/)。在仓库根目录执行：
+
+```bash
+uv sync --extra test --extra backup
+uv run health init --json
 uv run health db verify --json
 ```
 
-数据库默认位于 `data/database/health.sqlite3`，原始资料和运行数据均被 Git 忽略。导入文件
-应先放入 `data/imports`、`data/dicom` 或 `data/apple_health`，CLI 拒绝项目外路径。
+默认数据库在 `data/database/health.sqlite3`。不要把真实报告、数据库、导出包或身份资料加入 Git。`config/default.yaml` 是随仓库发布的默认值；如需配置 Hermes 的本地附件缓存，参考 `config/example.yaml` 创建自己的 `config/hermes.yaml`，仅允许你信任的精确目录。仓库当前仍追踪一个历史 `config/hermes.yaml`；**`.gitignore` 无法取消追踪，公开发布前必须解决历史隐私审查中的阻断项**。
 
-## 开发验证
+## 从报告到问诊
+
+把资料放入 `data/imports/`；任何医疗事实都应核对原件，写入前先检查预览：
+
+```bash
+uv run health record import data/imports/report.pdf --dry-run --json
+# 核对预览后，明确同意才改用 --confirm；不要直接批量确认 OCR 候选。
+uv run health visit-summary --department 耳鼻喉科 --json
+uv run health doctor-questions --department 耳鼻喉科 --json
+```
+
+扫描 PDF 的 OCR 默认关闭；启用本地 OCR 仍须逐项核对日期、数值、单位、左右侧和阴阳性。GPT 分析导出只生成本地文件，不自动上传；先预览，再确认，并在分享前自行复核脱敏结果：
+
+```bash
+uv run health export gpt-bundle --output review.json --dry-run --json
+```
+
+目前已有症状时间线、随访、结构化报告候选、影像和辐射剂量账本；正式病灶管理（`health lesions
+create/update/link-source/add-measurement/history`，不可变 UUID 与可读编号、证据类型保留、双侧
+群体描述不归属单颗）与证据链导出（`health export lesion-bundle/visit-bundle/record-index/case-bundle`，
+原文引用与系统摘要分离、原件打包校验）已实现；可点击原始 PDF 的医生速览 PDF 尚未实现，不要把
+现有导出当成排版 PDF。[开发计划](docs/DEVELOPMENT_PLAN.md)记录范围，[医疗边界](docs/MEDICAL_SAFETY.md)说明限制。紧急情况请联系当地急救服务。
+
+## 开发与安全
 
 ```bash
 uv run pytest
 uv run ruff check .
 ```
 
-医疗信息请始终由现实医生结合病史和检查判断。行动等级 A 仅表示应立即现实就医，系统本身
-不是急救服务。
-
-普通报告先 `record import --dry-run`，确认保存候选后，用 `record candidates IMPORT_ID`
-查看并通过 `record confirm-candidates` 局部确认。DICOM 剂量也必须先 dry-run；只有结构化
-RDSR 可在确认后作为设备记录入账；Dose Screen 必须按候选 ID 局部确认，Total DLP 不与
-事件 DLP 重复累计。普通 DICOM 缺失 DLP 时保持为空，不从切片数推算有效剂量。
-
-已保存但尚未确认候选的报告可运行 `health record reparse SOURCE_ID --dry-run --json` 预览
-新解析结果，人工确认后再将同一命令改为 `--confirm`。重解析只会替换尚未确认的旧候选，
-不会改变已确认或已拒绝的医疗事实。
-
-医院名称独立确认不会重解析或确认任何医疗事实：
-
-```bash
-health record institution-set SOURCE_ID --institution 完整医院名称 --dry-run --json
-health record institution-set SOURCE_ID --institution 完整医院名称 --confirm --json
-```
-
-第二条命令只能在用户核对第一条预览后运行。医院字段会标记为已人工确认的
-`source_fact`，以后重解析仍保留该值。
-
-扫描PDF默认不执行OCR。用户明确同意后，可用
-`health record reparse SOURCE_ID --ocr --dry-run --json` 进行完全本地的OCR预览。OCR候选
-置信度被限制为低置信度，日期、数字、小数点、单位、左右侧、位置及阴阳性必须逐项核对。
-
-## 导出给 GPT 分析
-
-先预览范围，不会创建文件或上传数据：
-
-```bash
-health export gpt-bundle --output my-health.json --dry-run --json
-```
-
-确认后只在 `data/exports` 创建本地JSON：
-
-```bash
-health export gpt-bundle --output my-health.json --confirm --json
-```
-
-待确认解析候选默认排除。如确实要让GPT辅助核对，可显式增加 `--include-pending`；这些内容
-只进入 `unconfirmed_data`，不会成为正式事实。生成后先在本地检查，再自行决定是否上传。
-详见 [GPT导出说明](docs/GPT_EXPORT.md)。
-
-常用日常管理命令：
-
-```bash
-uv run health symptoms add --name 咽喉疼痛 --location 咽喉 --dry-run --json
-uv run health followup add --title 影像复查 --due '6至12个月' --dry-run --json
-uv run health followup pending --json
-uv run health visit-summary --department 耳鼻喉科 --json
-uv run health doctor-questions --department 耳鼻喉科 --json
-uv run health dicom dose-screen data/imports/DOSE_SCREEN.txt --dry-run --json
-uv run health profile summary --json
-uv run health profile priorities --json
-uv run health imaging list --json
-```
-
-所有 `--json` 错误统一写入 stdout，使用稳定错误码并以非零状态退出；不会向微信输出堆栈、
-数据库路径或原始隐私字段。
-
-长期问题通过 `profile condition-add/scar-add/hpv-add/treatment-add/image-add/immune-add/risk-add`
-先预览后确认。照片仅用于大小、数量和外观的纵向记录，不进行自动诊断。Profile 只输出
-已知问题、变化、治疗、当前状态、风险因素、观察点和管理建议，不输出疾病概率或综合评分。
-
-Hermes 集成：
-
-```bash
-./hermes_skill/install.sh
-./hermes_skill/verify.sh
-hermes gateway restart
-hermes skills list
-```
-
-具体微信路由、权限和写操作确认流程见
-[Hermes 集成文档](docs/HERMES_INTEGRATION.md)。
+[贡献指南](CONTRIBUTING.md)说明如何使用虚构数据提交改动；发现漏洞或隐私泄露请按[安全政策](SECURITY.md)私下报告。代码按 [MIT](LICENSE) 授权；患者资料和第三方报告不因此获得公开授权。
