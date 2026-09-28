@@ -49,6 +49,19 @@ def validate_evidence(evidence_type: str, status: str, scope: str = "individual"
         raise ValidationFailure("Confirmed source identity requires report or clinician evidence")
 
 
+def validate_provenance(
+    evidence_type: str, original_text: str | None, page: int | None, original_offset: int | None
+) -> None:
+    """Verbatim in-document evidence must be anchored, not paraphrased from memory."""
+    if (page is not None and page < 1) or (original_offset is not None and original_offset < 0):
+        raise ValidationFailure("Invalid page or offset anchor")
+    if evidence_type in {"source_fact", "clinician_opinion"}:
+        if not original_text or not original_text.strip():
+            raise ValidationFailure(
+                "Report-backed evidence links require verbatim original text"
+            )
+
+
 def active_lesions(session: Session) -> list[Lesion]:
     lesions = session.scalars(select(Lesion).where(Lesion.verified.is_(True))).all()
     return [
@@ -155,8 +168,22 @@ def link_source(
     lesion = require_lesion(session, lesion_id)
     source = require_source(session, source_id)
     validate_evidence(evidence_type, status, scope)
+    validate_provenance(evidence_type, original_text, page, original_offset)
     if lesion.patient_id != source.patient_id:
         raise ValidationFailure("Source belongs to another patient")
+    for existing in session.scalars(
+        select(LesionSourceLink).where(
+            LesionSourceLink.lesion_id == lesion_id,
+            LesionSourceLink.source_document_id == source_id,
+            LesionSourceLink.unlinked_at.is_(None),
+        )
+    ):
+        if (
+            existing.evidence_type == evidence_type
+            and existing.status == status
+            and existing.original_text == original_text
+        ):
+            raise ValidationFailure("Identical active source link already exists")
     entry = audit(
         session,
         "lesions.link-source",
@@ -338,11 +365,15 @@ def formal_history(session: Session, lesion_id: str) -> dict[str, Any]:
 
 
 def measurement_rows(session: Session, lesion_id: str) -> list[dict[str, Any]]:
-    measurements = session.scalars(
-        select(LesionMeasurement).where(LesionMeasurement.verified.is_(True))
-    ).all()
+    """Unified measurement truth source: LesionMeasurement rows (details-JSON link)
+    merged with formal LesionObservation rows, deduplicated on
+    (lesion_id, date, size, source_document_id) so a normalised formal record never
+    double-counts the legacy record it was promoted from."""
     rows = []
-    for measurement in measurements:
+
+    for measurement in session.scalars(
+        select(LesionMeasurement).where(LesionMeasurement.verified.is_(True))
+    ).all():
         if measurement.details.get("lesion_id") != lesion_id:
             continue
         source = session.get(SourceDocument, measurement.source_document_id)
@@ -364,7 +395,41 @@ def measurement_rows(session: Session, lesion_id: str) -> list[dict[str, Any]]:
                 "follow_up_advice": measurement.details.get("follow_up_advice"),
             }
         )
-    return sorted(rows, key=lambda row: (row["date"] or "", row["id"]))
+
+    for observation in session.scalars(
+        select(LesionObservation).where(LesionObservation.lesion_id == lesion_id)
+    ).all():
+        source = session.get(SourceDocument, observation.source_document_id)
+        if source is None or source.revoked:
+            continue
+        rows.append(
+            {
+                "id": observation.id,
+                "date": observation.examination_date.date().isoformat()
+                if observation.examination_date
+                else None,
+                "size": observation.size,
+                "unit": observation.unit,
+                "modality": None,
+                "laterality": observation.laterality,
+                "anatomical_location": None,
+                "original_text": observation.original_text,
+                "source_document_id": observation.source_document_id,
+                "follow_up_advice": None,
+            }
+        )
+
+    unique: dict[tuple[Any, Any, Any, Any], dict[str, Any]] = {}
+    for row in sorted(rows, key=lambda row: (row["date"] or "", row["id"])):
+        key = (
+            lesion_id,
+            row["date"],
+            float(row["size"]) if row["size"] is not None else None,
+            row["source_document_id"],
+        )
+        if key not in unique:
+            unique[key] = row
+    return sorted(unique.values(), key=lambda row: (row["date"] or "", row["id"]))
 
 
 def comparison(rows: list[dict[str, Any]]) -> dict[str, Any]:

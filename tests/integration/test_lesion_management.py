@@ -169,3 +169,211 @@ def test_link_measurement_and_bilateral_safety(isolated_env: Path) -> None:
     assert invoke("history", lesion_id)["data"]["sources"] == []
     with session_scope() as session:
         assert session.get(LesionSourceLink, link["id"]).unlinked_at is not None
+
+
+def test_link_source_requires_verbatim_text_for_report_evidence(isolated_env: Path) -> None:
+    lesion_id = invoke(
+        "create",
+        "--display-code",
+        "LN-V",
+        "--name",
+        "Fictional verified node",
+        "--confirm",
+    )["data"]["id"]
+    with session_scope() as session:
+        session.add(
+            SourceDocument(
+                id="fictional-source-v",
+                patient_id="local-primary",
+                original_filename="fictional-v.pdf",
+                local_path="/fictional/report-v.pdf",
+                file_size=10,
+                sha256="b" * 64,
+            )
+        )
+    result = runner.invoke(
+        app,
+        [
+            "lesions",
+            "link-source",
+            lesion_id,
+            "fictional-source-v",
+            "--evidence-type",
+            "source_fact",
+            "--status",
+            "confirmed",
+            "--confirm",
+            "--json",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "verbatim original text" in result.stdout
+    negative = runner.invoke(
+        app,
+        [
+            "lesions",
+            "link-source",
+            lesion_id,
+            "fictional-source-v",
+            "--evidence-type",
+            "source_fact",
+            "--status",
+            "confirmed",
+            "--page",
+            "0",
+            "--confirm",
+            "--json",
+        ],
+    )
+    assert negative.exit_code != 0 and "Invalid page" in negative.stdout
+
+
+def test_link_source_rejects_identical_active_link(isolated_env: Path) -> None:
+    lesion_id = invoke(
+        "create",
+        "--display-code",
+        "LN-D",
+        "--name",
+        "Fictional duplicate node",
+        "--confirm",
+    )["data"]["id"]
+    with session_scope() as session:
+        session.add(
+            SourceDocument(
+                id="fictional-source-d",
+                patient_id="local-primary",
+                original_filename="fictional-d.pdf",
+                local_path="/fictional/report-d.pdf",
+                file_size=10,
+                sha256="c" * 64,
+            )
+        )
+    first = invoke(
+        "link-source",
+        lesion_id,
+        "fictional-source-d",
+        "--evidence-type",
+        "user_report",
+        "--status",
+        "user_confirmed",
+        "--original-text",
+        "Same verbatim text",
+        "--confirm",
+    )["data"]
+    link_id = first["id"]
+    duplicate = runner.invoke(
+        app,
+        [
+            "lesions",
+            "link-source",
+            lesion_id,
+            "fictional-source-d",
+            "--evidence-type",
+            "user_report",
+            "--status",
+            "user_confirmed",
+            "--original-text",
+            "Same verbatim text",
+            "--confirm",
+            "--json",
+        ],
+    )
+    assert duplicate.exit_code != 0 and "already exists" in duplicate.stdout
+    re_linked = invoke(
+        "link-source",
+        lesion_id,
+        "fictional-source-d",
+        "--evidence-type",
+        "user_report",
+        "--status",
+        "user_confirmed",
+        "--original-text",
+        "Different verbatim text",
+        "--confirm",
+    )["data"]
+    assert re_linked["id"] != link_id
+    invoke("unlink", lesion_id, link_id, "--confirm")
+    restored = invoke(
+        "link-source",
+        lesion_id,
+        "fictional-source-d",
+        "--evidence-type",
+        "user_report",
+        "--status",
+        "user_confirmed",
+        "--original-text",
+        "Same verbatim text",
+        "--confirm",
+    )["data"]
+    assert restored["id"] != link_id
+
+
+def test_unified_measurement_rows_dedup_formal_and_legacy(isolated_env: Path) -> None:
+    from datetime import datetime
+
+    from health_agent.database.models import LesionMeasurement, LesionObservation
+    from health_agent.services.lesion_tracker import measurement_rows
+
+    lesion_id = invoke(
+        "create",
+        "--display-code",
+        "LN-U",
+        "--name",
+        "Fictional unified node",
+        "--laterality",
+        "left",
+        "--confirm",
+    )["data"]["id"]
+    with session_scope() as session:
+        session.add(
+            SourceDocument(
+                id="fictional-source-u",
+                patient_id="local-primary",
+                original_filename="fictional-u.pdf",
+                local_path="/fictional/report-u.pdf",
+                file_size=10,
+                sha256="d" * 64,
+            )
+        )
+        session.flush()
+        legacy = LesionMeasurement(
+            patient_id="local-primary",
+            source_type="source_fact",
+            source_document_id="fictional-source-u",
+            verified=True,
+            occurred_at=datetime(2026, 5, 1),
+            original_text="legacy 10 mm",
+            details={"lesion_id": lesion_id, "size": 10, "unit": "mm"},
+        )
+        session.add(legacy)
+        session.flush()
+        formal = LesionObservation(
+            lesion_id=lesion_id,
+            source_document_id="fictional-source-u",
+            size=10,
+            unit="mm",
+            original_text="legacy 10 mm",
+            evidence_type="source_fact",
+            status="confirmed",
+            examination_date=datetime(2026, 5, 1),
+        )
+        session.add(formal)
+        formal_other = LesionObservation(
+            lesion_id=lesion_id,
+            source_document_id="fictional-source-u",
+            size=11,
+            unit="mm",
+            original_text="formal 11 mm",
+            evidence_type="source_fact",
+            status="unresolved",
+            examination_date=datetime(2026, 6, 1),
+        )
+        session.add(formal_other)
+    with session_scope() as session:
+        rows = measurement_rows(session, lesion_id)
+    # legacy 10 mm (2026-05-01, fictional-source-u) and the formal observation with the
+    # identical (lesion_id, date, size, source) key deduplicate into a single row.
+    assert len(rows) == 2
+    assert rows[0]["date"] == "2026-05-01" and rows[0]["size"] == 10
+    assert rows[1]["date"] == "2026-06-01" and rows[1]["size"] == 11
+    assert all(row["source_document_id"] == "fictional-source-u" for row in rows)

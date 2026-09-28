@@ -13,10 +13,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from health_agent.database.models import Lesion, LesionMeasurement, SourceDocument
+from health_agent.database.models import (
+    Lesion,
+    LesionMeasurement,
+    LesionObservation,
+    SourceDocument,
+)
 from health_agent.errors import ValidationFailure
 
-VERSION = "1"
+VERSION = "2"
 _PRIVATE = re.compile(r"(?<!\d)(?:1[3-9]\d{9}|\d{17}[\dXx])(?!\d)")
 
 
@@ -73,6 +78,7 @@ def build_lesion_bundle(
     sources = {source.id: source} if source else {}
     measurements = []
     chain = []
+    seen_keys = set()
     for measurement in session.scalars(
         select(LesionMeasurement).where(LesionMeasurement.patient_id == lesion.patient_id)
     ).all():
@@ -111,6 +117,52 @@ def build_lesion_bundle(
                 "original_quote": _redact(measurement.original_text),
                 "source_type": data.get("source_type", "source_fact"),
                 "identity_status": status,
+            }
+        )
+
+    for observation in session.scalars(
+        select(LesionObservation).where(LesionObservation.lesion_id == lesion_id)
+    ).all():
+        evidence_source = _source(session, observation.source_document_id)
+        if evidence_source is None:
+            continue
+        if observation.status in {"rejected", "unresolved", "probable"} and not include_unconfirmed:
+            continue
+        sources[evidence_source.id] = evidence_source
+        date = (
+            observation.examination_date.date().isoformat()
+            if observation.examination_date
+            else None
+        )
+        key = (lesion_id, date, float(observation.size), observation.source_document_id)
+        evidence_entry = {
+            "lesion_id": lesion_id,
+            "examination_id": None,
+            "report_record_id": observation.id,
+            "import_id": None,
+            "source_document_id": evidence_source.id,
+            "source_file": _archive_name(evidence_source),
+            "date": date,
+            "institution": _redact(evidence_source.institution),
+            "examination_type": None,
+            "page": None,
+            "original_offset": None,
+            "original_quote": _redact(observation.original_text),
+            "source_type": observation.evidence_type,
+            "identity_status": observation.status,
+        }
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        chain.append(evidence_entry)
+        measurements.append(
+            {
+                "id": observation.id,
+                "date": date,
+                "size": observation.size,
+                "unit": observation.unit,
+                "source_document_id": observation.source_document_id,
+                "identity_status": observation.status,
             }
         )
     measurements.sort(key=lambda item: (item["date"] or "", item["id"]))

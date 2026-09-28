@@ -32,7 +32,17 @@ confirmation for mutations.
   `health labs report REPORT_ID`
 - Imaging: `health imaging list`
 - Lesions: `health lesions list`, `health lesions show ID`, `health lesions measurements ID`,
-  `health lesions compare ID`
+  `health lesions compare ID`, `health lesions history ID`
+- Lesion writes (all preview/confirm gated): `health lesions create --display-code CODE --name NAME`,
+  `health lesions update ID`, `health lesions link-source ID SOURCE_DOCUMENT_ID --evidence-type TYPE
+  --status STATUS`, `health lesions unlink ID LINK_ID`,
+  `health lesions add-measurement ID --source SOURCE_DOCUMENT_ID --size N --unit UNIT
+  --original-text TEXT`
+- Clinical exports (all preview/confirm gated, local files only, never uploaded):
+  `health export lesion-bundle ID --output NAME.json`,
+  `health export visit-bundle --department DEPT --purpose PURPOSE --output NAME.json`,
+  `health export record-index --output NAME.json`,
+  `health export case-bundle --output NAME.zip`
 - Radiation: `health radiation list`, `health radiation show ID`,
   `health radiation acquisitions ID`, `health radiation summary`, `health radiation by-region`,
   `health radiation missing-dose-data`, `health radiation possible-duplicates`,
@@ -76,6 +86,18 @@ Mutation gate examples:
 - GPT export always starts with `export gpt-bundle --output FILE.json --dry-run --json`. It creates a
   local file only after confirmation. Never upload or attach it automatically, and never describe
   pending candidates as confirmed facts.
+- Lesion source linking first runs
+  `lesions link-source ID SOURCE_DOCUMENT_ID --evidence-type TYPE --status STATUS --dry-run --json`.
+  Report-backed evidence (`source_fact`, `clinician_opinion`) requires verbatim `--original-text`;
+  add `--page`/`--original-offset` only when you can point at the exact location in the source.
+  Run the same arguments again with `--confirm --json` and show the returned `link_id`.
+- Adding a lesion measurement first runs
+  `lesions add-measurement ID --source SOURCE --size N --unit UNIT --original-text TEXT --dry-run
+  --json`, then repeats with `--confirm --json`. Bilateral-group text cannot be attached to one
+  lesion: say so instead of forcing an individual measurement.
+- A clinical bundle export first runs its `--dry-run --json` form, states the output path inside the
+  local exports directory and the included source count, and writes the file only after
+  `--confirm --json`. The file stays local; the user decides whether and where to share it.
 
 For a WeChat file, use only the exact local cache path supplied by Hermes and accepted by CLI path
 validation. A rejected path must be copied/approved through deployment configuration by the operator;

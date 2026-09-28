@@ -138,6 +138,98 @@ def test_case_zip_rejects_tampered_original(clinical_case, tmp_path):
     assert not (tmp_path / "bad.zip").exists()
 
 
+def test_formal_observation_in_evidence_chain_and_version_two(clinical_case, tmp_path):
+    from sqlalchemy.orm import Session as SqSession
+
+    from health_agent.database.models import LesionObservation
+    from health_agent.services.clinical_exports import VERSION
+
+    engine, lesion_id, _, _ = clinical_case
+    with SqSession(engine) as session:
+        lesion = session.get(Lesion, lesion_id)
+        source_id = lesion.source_document_id
+        session.add(
+            LesionObservation(
+                lesion_id=lesion_id,
+                source_document_id=source_id,
+                size=5,
+                unit="mm",
+                original_text="formal observation 5 mm",
+                evidence_type="source_fact",
+                status="confirmed",
+                examination_date=datetime(2026, 2, 1),
+            )
+        )
+        session.commit()
+        bundle = build_lesion_bundle(session, lesion_id, include_unconfirmed=True)
+    assert bundle["format_version"] == "2" and VERSION == "2"
+    entries = [item for item in bundle["evidence_chain"] if item["report_record_id"]]
+    formal = [item for item in entries if item["identity_status"] == "confirmed"][-1]
+    assert formal["source_type"] == "source_fact"
+    assert formal["date"] == "2026-02-01"
+    assert formal["original_quote"] == "formal observation 5 mm"
+    measurements = bundle["measurements"]
+    assert any(item["size"] == 5 for item in measurements)
+
+
+def test_evidence_chain_redacts_direct_identifiers(tmp_path: Path):
+
+    from sqlalchemy.orm import Session as SqSession
+
+    from health_agent.database.migrations import migrate
+    from health_agent.database.models import LesionObservation
+    from health_agent.database.session import build_engine
+    from health_agent.services.clinical_exports import build_lesion_bundle
+
+    engine = build_engine(tmp_path / "redact.sqlite3")
+    migrate(engine)
+    original = tmp_path / "r.pdf"
+    original.write_bytes(b"%PDF-1.4\n")
+    with SqSession(engine) as session:
+        patient = Patient(local_label="Fictional")
+        session.add(patient)
+        session.flush()
+        source = SourceDocument(
+            patient_id=patient.id,
+            original_filename="report [REDACTED].pdf",
+            local_path=str(original),
+            file_size=original.stat().st_size,
+            sha256=hashlib.sha256(original.read_bytes()).hexdigest(),
+            institution="Fictional",
+        )
+        session.add(source)
+        session.flush()
+        lesion = Lesion(
+            patient_id=patient.id,
+            source_type="source_fact",
+            source_document_id=source.id,
+            verified=True,
+            details={"display_code": "LR-1", "name": "Fictional"},
+        )
+        session.add(lesion)
+        session.flush()
+        session.add(
+            LesionObservation(
+                lesion_id=lesion.id,
+                source_document_id=source.id,
+                size=6,
+                unit="mm",
+                original_text="patient id 11010119900307777X reported 6 mm",
+                evidence_type="source_fact",
+                status="confirmed",
+                examination_date=datetime(2026, 3, 1),
+            )
+        )
+        session.commit()
+        bundle = build_lesion_bundle(session, lesion.id, include_unconfirmed=True)
+    quotes = [item["original_quote"] for item in bundle["evidence_chain"]]
+    assert quotes, "expected at least one evidence-chain entry"
+    joined = "\n".join(str(item) for item in quotes)
+    assert "11010119900307777X" not in joined
+    assert "[REDACTED]" in joined
+    engine.dispose()
+
+
 def test_cli_requires_gate_and_exports_json(clinical_case, tmp_path, monkeypatch):
     engine, lesion_id, _, _ = clinical_case
     monkeypatch.setenv("HEALTH_AGENT_DATABASE", str(engine.url.database))
