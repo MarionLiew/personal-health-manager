@@ -29,6 +29,23 @@
   verification, department-filtered visit packs and a full-case index.
 - Reissue the repository as the open-source `personal-health-manager` Skill packaging under MIT.
 
+## 0.6.2 - 2026-09-28
+
+- Harden `lesions link-source` provenance: report-backed evidence (`source_fact`,
+  `clinician_opinion`) now requires a verbatim `--original-text` quote, page/offset anchors must be
+  positive document locations, and an identical active source link on the same lesion can no longer
+  be created twice (re-linking after unlink remains allowed).
+- Unify the measurement truth source: `lesions show/measurements/compare` and the visit/GPT exports
+  merge formal `LesionObservation` rows with legacy `LesionMeasurement` rows, deduplicated on
+  `(lesion_id, date, size, source_document_id)` so a normalised formal record does not double-count
+  the record it was promoted from.
+- Reconcile clinical exports to the v7 models: `lesion-bundle`/`visit-bundle`/`record-index`/
+  `case-bundle` evidence chains now include formal observations with verbatim redacted quotes and
+  evidence types preserved verbatim; clinical bundle `format_version` bumps to `2`.
+- Repackage documentation as the `personal-health-manager` Skill: command map lists all lesion
+  write commands and clinical bundle exports, and the skill narrative is reframed around
+  hallucination reduction (verbatim quotes over model summaries, evidence types never promoted).
+
 ## 0.6.1 - 2026-07-15
 
 - Add schema migration 6 and `health record institution-set` so a source hospital can be previewed,
